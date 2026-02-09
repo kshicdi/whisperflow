@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+
+# macOS
+.DS_Store
+*.swp
+
+# IDE
+.idea/
+.vscode/
+*.sublime-*
+
+# Logs
+*.log
+/tmp/
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# Config (개인 설정)
+# ~/.config/whisperflow/config.json

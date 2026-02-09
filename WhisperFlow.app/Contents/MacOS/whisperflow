@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# WhisperFlow 앱 실행 스크립트
+PROJECT_DIR="/Users/USER/Documents/아이디어프로그램/05.Whisperflow"
+
+cd "$PROJECT_DIR"
+source venv/bin/activate
+exec python -m whisperflow
