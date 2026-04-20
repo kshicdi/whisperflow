@@ -7,6 +7,12 @@ import datetime
 import threading
 from pathlib import Path
 
+try:
+    from PyObjCTools import AppHelper  # noqa: F401 - 존재 여부 확인용
+    HAS_PYOBJC = True
+except ImportError:
+    HAS_PYOBJC = False
+
 LOG_FILE = "/tmp/whisperflow.log"
 
 
@@ -44,6 +50,30 @@ class WhisperFlowApp(rumps.App):
     ICON_IDLE = "🎤"
     ICON_RECORDING = "🔴"
     ICON_PROCESSING = "⏳"
+
+    def _set_title_safe(self, new_title: str) -> None:
+        """메인 스레드에서 안전하게 타이틀을 변경.
+
+        백그라운드 스레드에서 self.title을 직접 변경하면
+        AppKit의 NSView 서브뷰 열거 카운터(_enumeratingSubviewsCount)가
+        오버플로되어 SIGABRT 크래시가 발생한다.
+        PyObjCTools.AppHelper.callAfter로 메인 런루프에 디스패치한다.
+        """
+        if threading.current_thread() is threading.main_thread():
+            self.title = new_title
+            return
+
+        try:
+            from PyObjCTools.AppHelper import callAfter
+            callAfter(self._apply_title, new_title)
+        except Exception as e:
+            # callAfter 실패 시 (극히 드묾) 직접 설정 - 크래시보다는 낫다
+            log(f"[경고] callAfter 실패, 직접 title 설정: {e}")
+            self.title = new_title
+
+    def _apply_title(self, new_title: str) -> None:
+        """실제 타이틀 적용 (메인 스레드에서 호출됨)"""
+        self.title = new_title
 
     def __init__(self):
         super().__init__(
@@ -472,13 +502,13 @@ class WhisperFlowApp(rumps.App):
     def _on_recording_start(self) -> None:
         """녹음 시작 콜백"""
         log("[녹음] 시작")
-        self.title = self.ICON_RECORDING
+        self._set_title_safe(self.ICON_RECORDING)
         self._ws_broadcast("broadcast_state", "recording")
 
     def _on_recording_stop(self, audio_path: str) -> None:
         """녹음 종료 콜백"""
         log(f"[녹음] 종료 - 파일: {audio_path}")
-        self.title = self.ICON_PROCESSING
+        self._set_title_safe(self.ICON_PROCESSING)
         self._ws_broadcast("broadcast_state", "processing")
         # 비동기로 변환 시작
         self.transcriber.transcribe_async(audio_path)
@@ -486,12 +516,12 @@ class WhisperFlowApp(rumps.App):
     def _on_transcription_start(self) -> None:
         """변환 시작 콜백"""
         log("[변환] 시작 (모델 로딩 중...)")
-        self.title = self.ICON_PROCESSING
+        self._set_title_safe(self.ICON_PROCESSING)
 
     def _on_transcription_done(self, text: str) -> None:
         """변환 완료 콜백"""
         log(f"[변환] 완료 - 텍스트: {text}")
-        self.title = self.ICON_IDLE
+        self._set_title_safe(self.ICON_IDLE)
         if text:
             # 텍스트가 있으면 THINKING 상태로 (Claude가 처리할 때까지 유지)
             self._ws_broadcast("broadcast_state", "thinking")
@@ -518,7 +548,7 @@ class WhisperFlowApp(rumps.App):
     def _on_transcription_error(self, error: str) -> None:
         """변환 오류 콜백"""
         log(f"[오류] {error}")
-        self.title = self.ICON_IDLE
+        self._set_title_safe(self.ICON_IDLE)
         self._ws_broadcast("broadcast_state", "idle")
         TextOutput.show_notification("WhisperFlow 오류", error)
 
