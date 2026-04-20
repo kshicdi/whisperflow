@@ -2,6 +2,7 @@
 
 import rumps
 import sys
+import os
 import datetime
 import threading
 from pathlib import Path
