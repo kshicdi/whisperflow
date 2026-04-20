@@ -377,6 +377,115 @@
     z-index: 1;
   }
 
+  /* === Code Action Panel === */
+  .code-panel {
+    position: absolute;
+    top: 120px;
+    right: 30px;
+    width: 340px;
+    max-height: 280px;
+    border: 1px solid rgba(0, 212, 255, 0.15);
+    background: rgba(0, 5, 15, 0.85);
+    overflow: hidden;
+    display: none;
+    z-index: 5;
+    font-family: 'Courier New', monospace;
+  }
+
+  .code-panel.active {
+    display: block;
+    animation: feed-appear 0.5s ease-out;
+  }
+
+  .code-panel-header {
+    height: 22px;
+    background: rgba(0, 212, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 10px;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.15);
+  }
+
+  .code-panel-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px;
+    letter-spacing: 3px;
+    color: rgba(0, 212, 255, 0.6);
+  }
+
+  .code-panel-status {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 7px;
+    letter-spacing: 2px;
+    color: #00ff88;
+  }
+
+  .code-panel-content {
+    padding: 8px 10px;
+    max-height: 258px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 100%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 100%);
+  }
+
+  .code-action {
+    margin-bottom: 6px;
+    animation: msg-slide-in 0.3s ease-out;
+  }
+
+  .code-action-type {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px;
+    letter-spacing: 2px;
+    color: #00d4ff;
+    margin-bottom: 2px;
+  }
+
+  .code-action-type.editing { color: #ffbd2e; }
+  .code-action-type.writing { color: #00ff88; }
+  .code-action-type.executing { color: #ff6b6b; }
+  .code-action-type.searching { color: #c084fc; }
+  .code-action-type.reading { color: #00d4ff; }
+  .code-action-type.agent { color: #f97316; }
+
+  .code-action-file {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 2px;
+  }
+
+  .code-action-detail {
+    font-size: 9px;
+    color: rgba(255, 255, 255, 0.4);
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .code-action-detail .line-add {
+    color: #00ff88;
+  }
+
+  .code-action-detail .line-del {
+    color: #ff6b6b;
+  }
+
+  .code-panel-scanlines {
+    position: absolute;
+    top: 22px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0, 212, 255, 0.01) 3px, rgba(0, 212, 255, 0.01) 6px);
+    pointer-events: none;
+    z-index: 1;
+  }
+
   /* === Conversation Log === */
   .conversation-log {
     position: absolute;
@@ -719,6 +828,17 @@
       <div class="reactor-core" id="reactorCore">
         <span class="icon">J</span>
       </div>
+    </div>
+
+    <!-- Code Action Panel -->
+    <div class="code-panel" id="codePanel">
+      <div class="code-panel-header">
+        <span class="code-panel-title">CODE ACTIONS</span>
+        <span class="code-panel-status" id="codePanelStatus">IDLE</span>
+      </div>
+      <div class="code-panel-content" id="codePanelContent">
+      </div>
+      <div class="code-panel-scanlines"></div>
     </div>
 
     <!-- Browser Feed -->
@@ -1425,6 +1545,78 @@
                 appendChunk(text, duration);
               }
             }
+          }
+          break;
+        }
+
+        case 'code_action': {
+          // Claude Code 도구 사용 시각화
+          // format: "ACTION_TYPE|filename|detail1|detail2"
+          if (msg.value) {
+            const panel = $('codePanel');
+            const content = $('codePanelContent');
+            const status = $('codePanelStatus');
+            panel.classList.add('active');
+
+            const parts = msg.value.split('|');
+            const actionType = (parts[0] || '').trim();
+            const target = (parts[1] || '').trim();
+            const detail1 = (parts[2] || '').trim();
+            const detail2 = (parts[3] || '').trim();
+
+            status.textContent = actionType;
+
+            const action = document.createElement('div');
+            action.className = 'code-action';
+
+            const typeEl = document.createElement('div');
+            typeEl.className = 'code-action-type ' + actionType.toLowerCase();
+            typeEl.textContent = '> ' + actionType;
+
+            const fileEl = document.createElement('div');
+            fileEl.className = 'code-action-file';
+            fileEl.textContent = target;
+
+            action.appendChild(typeEl);
+            action.appendChild(fileEl);
+
+            if (detail1 || detail2) {
+              const detailEl = document.createElement('div');
+              detailEl.className = 'code-action-detail';
+              if (actionType === 'EDITING') {
+                if (detail1) {
+                  const del = document.createElement('span');
+                  del.className = 'line-del';
+                  del.textContent = detail1;
+                  detailEl.appendChild(del);
+                  detailEl.appendChild(document.createElement('br'));
+                }
+                if (detail2) {
+                  const add = document.createElement('span');
+                  add.className = 'line-add';
+                  add.textContent = detail2;
+                  detailEl.appendChild(add);
+                }
+              } else {
+                detailEl.textContent = detail1;
+              }
+              action.appendChild(detailEl);
+            }
+
+            content.appendChild(action);
+
+            // Keep last 15 actions
+            while (content.children.length > 15) {
+              content.removeChild(content.firstChild);
+            }
+            content.scrollTop = content.scrollHeight;
+
+            // Auto-hide after 30s of no activity
+            if (panel._hideTimer) clearTimeout(panel._hideTimer);
+            panel._hideTimer = setTimeout(() => {
+              panel.classList.remove('active');
+              status.textContent = 'IDLE';
+            }, 30000);
           }
           break;
         }
