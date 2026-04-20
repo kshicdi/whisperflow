@@ -3,6 +3,8 @@
 import rumps
 import sys
 import datetime
+import threading
+from pathlib import Path
 
 LOG_FILE = "/tmp/whisperflow.log"
 
@@ -17,11 +19,21 @@ def log(msg):
         f.write(line + "\n")
 
 
+import subprocess
+import webbrowser
+
 from .config import config
 from .audio_recorder import AudioRecorder
 from .transcriber import Transcriber
 from .hotkey_manager import HotkeyManager
 from .text_output import TextOutput
+from .history_manager import history_manager
+from .tts_reader import tts_reader
+
+try:
+    from .ws_server import WhisperFlowWSServer
+except ImportError:
+    WhisperFlowWSServer = None
 
 
 class WhisperFlowApp(rumps.App):
@@ -39,10 +51,23 @@ class WhisperFlowApp(rumps.App):
             quit_button="종료"
         )
 
+        # WebSocket 서버 초기화 (JARVIS UI)
+        try:
+            if WhisperFlowWSServer is not None:
+                self.ws_server = WhisperFlowWSServer()
+                self.ws_server.start()
+            else:
+                self.ws_server = None
+                log("[WS] websockets 모듈 미설치 - WebSocket 서버 비활성화")
+        except Exception as e:
+            self.ws_server = None
+            log(f"[WS] 서버 초기화 실패 (무시): {e}")
+
         # 컴포넌트 초기화
         self.recorder = AudioRecorder(
             on_recording_start=self._on_recording_start,
-            on_recording_stop=self._on_recording_stop
+            on_recording_stop=self._on_recording_stop,
+            on_audio_level=self._on_audio_level
         )
 
         self.transcriber = Transcriber(
@@ -53,10 +78,16 @@ class WhisperFlowApp(rumps.App):
 
         self.hotkey_manager = HotkeyManager(
             on_hold_start=self._on_hotkey_start,
-            on_hold_end=self._on_hotkey_end
+            on_hold_end=self._on_hotkey_end,
+            on_tts_trigger=self._on_tts_trigger
         )
 
         self.text_output = TextOutput()
+
+        # 녹음 시작/종료를 atomic하게 보호하는 락
+        # hotkey_manager는 여러 스레드에서 on_hold_start를 호출할 수 있으므로
+        # is_recording 체크 + start_recording 호출을 하나의 임계 구역으로 묶는다
+        self._recording_lock = threading.Lock()
 
         # 메뉴 구성
         self._setup_menu()
@@ -113,12 +144,137 @@ class WhisperFlowApp(rumps.App):
             self.hotkey_items[key] = item
             self.hotkey_menu.add(item)
 
+        # Option 키 길게 누르기 설정
+        self.hotkey_menu.add(None)  # 구분선
+        self.option_hold_item = rumps.MenuItem(
+            "Option(⌥) 길게 누르기",
+            callback=self._toggle_option_hold
+        )
+        self.option_hold_item.state = 1 if config.option_hold_enabled else 0
+        self.hotkey_menu.add(self.option_hold_item)
+
+        # 히스토리 설정 서브메뉴
+        self.history_menu = rumps.MenuItem("히스토리")
+        self.history_enabled_item = rumps.MenuItem(
+            "히스토리 저장",
+            callback=self._toggle_history
+        )
+        self.history_enabled_item.state = 1 if config.history_enabled else 0
+        self.history_menu.add(self.history_enabled_item)
+        self.history_menu.add(None)  # 구분선
+        self.history_menu.add(rumps.MenuItem(
+            "히스토리 폴더 열기",
+            callback=self._open_history_folder
+        ))
+        self.history_menu.add(rumps.MenuItem(
+            "히스토리 전체 삭제",
+            callback=self._clear_history
+        ))
+
+        # TTS 설정 서브메뉴
+        self.tts_menu = rumps.MenuItem("TTS (텍스트 읽기)")
+        self.tts_enabled_item = rumps.MenuItem(
+            "TTS 활성화",
+            callback=self._toggle_tts
+        )
+        self.tts_enabled_item.state = 1 if config.tts_enabled else 0
+        self.tts_menu.add(self.tts_enabled_item)
+        self.tts_menu.add(None)  # 구분선
+
+        # TTS 속도 설정
+        self.tts_rate_menu = rumps.MenuItem("읽기 속도")
+        self.tts_rate_items = {}
+        rates = [
+            (100, "느리게 (100)"),
+            (150, "약간 느리게 (150)"),
+            (200, "보통 (200)"),
+            (250, "약간 빠르게 (250)"),
+            (300, "빠르게 (300)"),
+        ]
+        for rate, name in rates:
+            item = rumps.MenuItem(name, callback=self._change_tts_rate)
+            item._rate = rate
+            if rate == config.tts_rate:
+                item.state = 1
+            self.tts_rate_items[rate] = item
+            self.tts_rate_menu.add(item)
+        self.tts_menu.add(self.tts_rate_menu)
+        self.tts_menu.add(None)  # 구분선
+
+        # Qwen TTS 속도 설정
+        self.qwen_speed_menu = rumps.MenuItem("Qwen TTS 속도")
+        self.qwen_speed_items = {}
+        qwen_speeds = [
+            (1.0, "보통 (1.0x)"),
+            (1.2, "약간 빠르게 (1.2x)"),
+            (1.4, "빠르게 (1.4x)"),
+            (1.6, "매우 빠르게 (1.6x)"),
+            (1.8, "최고 빠르게 (1.8x)"),
+        ]
+        for speed, name in qwen_speeds:
+            item = rumps.MenuItem(name, callback=self._change_qwen_speed)
+            item._speed = speed
+            if speed == config.qwen_tts_speed:
+                item.state = 1
+            self.qwen_speed_items[speed] = item
+            self.qwen_speed_menu.add(item)
+        self.tts_menu.add(self.qwen_speed_menu)
+        self.tts_menu.add(None)  # 구분선
+
+        # 드라이브 모드 (전체 읽기)
+        self.auto_tts_item = rumps.MenuItem(
+            "드라이브 모드 (전체 읽기)",
+            callback=self._toggle_auto_tts
+        )
+        toggle_file = Path.home() / ".whisperflow_auto_tts"
+        self.auto_tts_item.state = 1 if toggle_file.exists() else 0
+        self.tts_menu.add(self.auto_tts_item)
+
+        # 도서관 모드 (앞부분만 빠르게)
+        self.library_tts_item = rumps.MenuItem(
+            "도서관 모드 (앞부분만)",
+            callback=self._toggle_library_tts
+        )
+        library_file = Path.home() / ".whisperflow_library_tts"
+        self.library_tts_item.state = 1 if library_file.exists() else 0
+        self.tts_menu.add(self.library_tts_item)
+
+        # 유튜브 모드 (자비스 전체 읽기)
+        self.youtube_tts_item = rumps.MenuItem(
+            "유튜브 모드 (자비스 전체)",
+            callback=self._toggle_youtube_tts
+        )
+        youtube_file = Path.home() / ".whisperflow_youtube_tts"
+        self.youtube_tts_item.state = 1 if youtube_file.exists() else 0
+        self.tts_menu.add(self.youtube_tts_item)
+
+        self.tts_menu.add(None)  # 구분선
+        self.tts_menu.add(rumps.MenuItem(
+            "읽기 중지",
+            callback=self._stop_tts
+        ))
+
+        # TTS 초기 속도 설정
+        tts_reader.set_rate(config.tts_rate)
+
+        # 자동 엔터 설정
+        self.auto_enter_item = rumps.MenuItem(
+            "자동 엔터",
+            callback=self._toggle_auto_enter
+        )
+        self.auto_enter_item.state = 1 if config.auto_enter else 0
+
         self.menu = [
             rumps.MenuItem("녹음 시작/중지", callback=self._menu_toggle_recording),
             None,  # 구분선
             self.model_menu,
             self.lang_menu,
             self.hotkey_menu,
+            self.history_menu,
+            self.tts_menu,
+            self.auto_enter_item,
+            None,
+            rumps.MenuItem("JARVIS UI", callback=self._open_jarvis_ui),
             None,
         ]
 
@@ -147,6 +303,46 @@ class WhisperFlowApp(rumps.App):
         display = "+".join([k.upper() for k in selected])
         log(f"[설정] 단축키 변경: {display}")
         TextOutput.show_notification("WhisperFlow", f"단축키: {display}")
+
+    def _toggle_option_hold(self, sender) -> None:
+        """Option 키 길게 누르기 토글"""
+        sender.state = 0 if sender.state else 1
+        enabled = bool(sender.state)
+
+        # 설정 저장
+        config.option_hold_enabled = enabled
+        config.save()
+
+        # HotkeyManager 업데이트
+        self.hotkey_manager.set_option_hold_enabled(enabled)
+
+        status = "활성화" if enabled else "비활성화"
+        log(f"[설정] Option 키 길게 누르기: {status}")
+        TextOutput.show_notification("WhisperFlow", f"Option 키 길게 누르기: {status}")
+
+    def _toggle_history(self, sender) -> None:
+        """히스토리 저장 토글"""
+        sender.state = 0 if sender.state else 1
+        enabled = bool(sender.state)
+
+        config.history_enabled = enabled
+        config.save()
+
+        status = "활성화" if enabled else "비활성화"
+        log(f"[설정] 히스토리 저장: {status}")
+        TextOutput.show_notification("WhisperFlow", f"히스토리 저장: {status}")
+
+    def _open_history_folder(self, sender) -> None:
+        """히스토리 폴더 열기"""
+        history_dir = history_manager.get_history_dir()
+        log(f"[히스토리] 폴더 열기: {history_dir}")
+        subprocess.run(["open", str(history_dir)])
+
+    def _clear_history(self, sender) -> None:
+        """히스토리 전체 삭제"""
+        count = history_manager.clear_all()
+        log(f"[히스토리] {count}개 삭제됨")
+        TextOutput.show_notification("WhisperFlow", f"히스토리 {count}개 삭제됨")
 
     def _change_language(self, sender) -> None:
         """언어 변경"""
@@ -182,14 +378,36 @@ class WhisperFlowApp(rumps.App):
         TextOutput.show_notification("WhisperFlow", f"모델 변경: {new_model}")
 
     def _on_hotkey_start(self) -> None:
-        """단축키로 녹음 시작"""
-        if not self.recorder.is_recording:
+        """단축키로 녹음 시작 (thread-safe)"""
+        with self._recording_lock:
+            if self.recorder.is_recording:
+                log("[앱] _on_hotkey_start 무시 - 이미 녹음 중")
+                return
             TextOutput.save_active_app()
             self.recorder.start_recording()
 
-    def _on_hotkey_end(self) -> None:
-        """단축키로 녹음 종료"""
+            # 안전장치: 120초 후 자동 녹음 중지
+            if hasattr(self, '_safety_timer') and self._safety_timer:
+                self._safety_timer.cancel()
+            self._safety_timer = threading.Timer(120.0, self._safety_stop_recording)
+            self._safety_timer.daemon = True
+            self._safety_timer.start()
+
+    def _safety_stop_recording(self) -> None:
+        """안전장치: 녹음이 너무 오래되면 자동 중지"""
         if self.recorder.is_recording:
+            log("[앱] 안전장치 - 120초 초과 자동 녹음 중지")
+            self.recorder.stop_recording()
+
+    def _on_hotkey_end(self) -> None:
+        """단축키로 녹음 종료 (thread-safe)"""
+        with self._recording_lock:
+            if hasattr(self, '_safety_timer') and self._safety_timer:
+                self._safety_timer.cancel()
+                self._safety_timer = None
+            if not self.recorder.is_recording:
+                log("[앱] _on_hotkey_end 무시 - 이미 녹음 중 아님")
+                return
             self.recorder.stop_recording()
 
     def _menu_toggle_recording(self, sender) -> None:
@@ -198,24 +416,44 @@ class WhisperFlowApp(rumps.App):
         self._toggle_recording()
 
     def _toggle_recording(self) -> None:
-        """녹음 토글"""
-        log(f"[앱] _toggle_recording 호출, 현재 녹음 중: {self.recorder.is_recording}")
-        if self.recorder.is_recording:
-            self.recorder.stop_recording()
-        else:
-            # 녹음 시작 전 현재 활성 앱 저장
-            TextOutput.save_active_app()
-            self.recorder.start_recording()
+        """녹음 토글 (thread-safe)"""
+        with self._recording_lock:
+            log(f"[앱] _toggle_recording 호출, 현재 녹음 중: {self.recorder.is_recording}")
+            if self.recorder.is_recording:
+                self.recorder.stop_recording()
+            else:
+                # 녹음 시작 전 현재 활성 앱 저장
+                TextOutput.save_active_app()
+                self.recorder.start_recording()
+
+    def _ws_broadcast(self, method: str, *args) -> None:
+        """ws_server 브로드캐스트를 안전하게 호출 (ws_server가 None이거나 예외 시 무시)"""
+        if self.ws_server is None:
+            return
+        try:
+            getattr(self.ws_server, method)(*args)
+        except Exception:
+            pass
+
+    def _on_audio_level(self, level: float) -> None:
+        """오디오 레벨 콜백 → WebSocket 브로드캐스트"""
+        self._ws_broadcast("broadcast_audio_level", level)
+
+    def _open_jarvis_ui(self, sender) -> None:
+        """JARVIS UI를 기본 브라우저에서 열기"""
+        webbrowser.open("http://localhost:8767")
 
     def _on_recording_start(self) -> None:
         """녹음 시작 콜백"""
         log("[녹음] 시작")
         self.title = self.ICON_RECORDING
+        self._ws_broadcast("broadcast_state", "recording")
 
     def _on_recording_stop(self, audio_path: str) -> None:
         """녹음 종료 콜백"""
         log(f"[녹음] 종료 - 파일: {audio_path}")
         self.title = self.ICON_PROCESSING
+        self._ws_broadcast("broadcast_state", "processing")
         # 비동기로 변환 시작
         self.transcriber.transcribe_async(audio_path)
 
@@ -228,6 +466,12 @@ class WhisperFlowApp(rumps.App):
         """변환 완료 콜백"""
         log(f"[변환] 완료 - 텍스트: {text}")
         self.title = self.ICON_IDLE
+        if text:
+            # 텍스트가 있으면 THINKING 상태로 (Claude가 처리할 때까지 유지)
+            self._ws_broadcast("broadcast_state", "thinking")
+            self._ws_broadcast("broadcast_transcript", text)
+        else:
+            self._ws_broadcast("broadcast_state", "idle")
 
         if text:
             success = self.text_output.output(text)
@@ -249,7 +493,193 @@ class WhisperFlowApp(rumps.App):
         """변환 오류 콜백"""
         log(f"[오류] {error}")
         self.title = self.ICON_IDLE
+        self._ws_broadcast("broadcast_state", "idle")
         TextOutput.show_notification("WhisperFlow 오류", error)
+
+    def _change_qwen_speed(self, sender) -> None:
+        """Qwen TTS 속도 변경"""
+        new_speed = sender._speed
+        log(f"[설정] Qwen TTS 속도 변경: {config.qwen_tts_speed} → {new_speed}")
+
+        for speed, item in self.qwen_speed_items.items():
+            item.state = 1 if speed == new_speed else 0
+
+        config.qwen_tts_speed = new_speed
+        config.save()
+
+        # 훅 스크립트의 SPEED 값도 업데이트
+        import re
+        hook_path = Path.home() / ".claude" / "hooks" / "qwen_tts_speak.py"
+        if hook_path.exists():
+            content = hook_path.read_text()
+            content = re.sub(r'SPEED = [\d.]+', f'SPEED = {new_speed}', content)
+            hook_path.write_text(content)
+
+        TextOutput.show_notification("WhisperFlow", f"Qwen TTS 속도: {new_speed}x")
+
+    # === TTS 관련 메서드 ===
+
+    def _toggle_tts(self, sender) -> None:
+        """TTS 활성화/비활성화"""
+        sender.state = 0 if sender.state else 1
+        enabled = bool(sender.state)
+
+        config.tts_enabled = enabled
+        config.save()
+
+        self.hotkey_manager.set_tts_enabled(enabled)
+
+        status = "활성화" if enabled else "비활성화"
+        log(f"[설정] TTS: {status}")
+        TextOutput.show_notification("WhisperFlow", f"TTS: {status}")
+
+    def _change_tts_rate(self, sender) -> None:
+        """TTS 속도 변경"""
+        new_rate = sender._rate
+        log(f"[설정] TTS 속도 변경: {config.tts_rate} → {new_rate}")
+
+        # 체크 표시 업데이트
+        for rate, item in self.tts_rate_items.items():
+            item.state = 1 if rate == new_rate else 0
+
+        config.tts_rate = new_rate
+        config.save()
+
+        tts_reader.set_rate(new_rate)
+
+        TextOutput.show_notification("WhisperFlow", f"TTS 속도: {new_rate}")
+
+    def _toggle_auto_enter(self, sender) -> None:
+        """자동 엔터 토글"""
+        sender.state = 0 if sender.state else 1
+        config.auto_enter = bool(sender.state)
+        config.save()
+        status = "ON" if config.auto_enter else "OFF"
+        log(f"[설정] 자동 엔터: {status}")
+        TextOutput.show_notification("WhisperFlow", f"자동 엔터: {status}")
+
+    def _toggle_auto_tts(self, sender) -> None:
+        """드라이브 모드 토글"""
+        toggle_file = Path.home() / ".whisperflow_auto_tts"
+        library_file = Path.home() / ".whisperflow_library_tts"
+        sender.state = 0 if sender.state else 1
+        enabled = bool(sender.state)
+
+        if enabled:
+            toggle_file.touch()
+            library_file.unlink(missing_ok=True)
+            youtube_file = Path.home() / ".whisperflow_youtube_tts"
+            youtube_file.unlink(missing_ok=True)
+            self.library_tts_item.state = 0
+            self.youtube_tts_item.state = 0
+            log("[TTS] 드라이브 모드 ON")
+            TextOutput.show_notification("WhisperFlow", "드라이브 모드 ON")
+        else:
+            toggle_file.unlink(missing_ok=True)
+            log("[TTS] 드라이브 모드 OFF")
+            TextOutput.show_notification("WhisperFlow", "드라이브 모드 OFF")
+
+    def _toggle_library_tts(self, sender) -> None:
+        """도서관 모드 토글"""
+        library_file = Path.home() / ".whisperflow_library_tts"
+        toggle_file = Path.home() / ".whisperflow_auto_tts"
+        youtube_file = Path.home() / ".whisperflow_youtube_tts"
+        sender.state = 0 if sender.state else 1
+        enabled = bool(sender.state)
+
+        if enabled:
+            library_file.touch()
+            toggle_file.unlink(missing_ok=True)
+            youtube_file.unlink(missing_ok=True)
+            self.auto_tts_item.state = 0
+            self.youtube_tts_item.state = 0
+            log("[TTS] 도서관 모드 ON")
+            TextOutput.show_notification("WhisperFlow", "도서관 모드 ON")
+        else:
+            library_file.unlink(missing_ok=True)
+            log("[TTS] 도서관 모드 OFF")
+
+    def _toggle_youtube_tts(self, sender) -> None:
+        """유튜브 모드 토글"""
+        youtube_file = Path.home() / ".whisperflow_youtube_tts"
+        toggle_file = Path.home() / ".whisperflow_auto_tts"
+        library_file = Path.home() / ".whisperflow_library_tts"
+        sender.state = 0 if sender.state else 1
+        enabled = bool(sender.state)
+
+        if enabled:
+            youtube_file.touch()
+            toggle_file.unlink(missing_ok=True)
+            library_file.unlink(missing_ok=True)
+            self.auto_tts_item.state = 0
+            self.library_tts_item.state = 0
+            log("[TTS] 유튜브 모드 ON")
+            TextOutput.show_notification("WhisperFlow", "유튜브 모드 ON (자비스 전체)")
+        else:
+            youtube_file.unlink(missing_ok=True)
+            log("[TTS] 유튜브 모드 OFF")
+            TextOutput.show_notification("WhisperFlow", "도서관 모드 OFF")
+
+    def _stop_tts(self, sender) -> None:
+        """TTS 읽기 중지 (메뉴)"""
+        tts_reader.stop()
+        self._ws_broadcast("broadcast_state", "idle")
+        log("[TTS] 읽기 중지 (메뉴)")
+
+    def _on_tts_trigger(self) -> None:
+        """TTS 단축키 콜백 - 선택된 텍스트를 읽기
+
+        1. 현재 클립보드 내용 백업
+        2. Cmd+C로 선택 텍스트 복사
+        3. 클립보드에서 텍스트 읽기
+        4. TTS로 읽기
+        5. 원래 클립보드 내용 복원
+        """
+        import time
+        import pyperclip
+
+        # 이미 읽기 중이면 중지
+        if tts_reader.is_speaking:
+            tts_reader.stop()
+            self._ws_broadcast("broadcast_state", "idle")
+            log("[TTS] 읽기 중지 (단축키)")
+            return
+
+        log("[TTS] 클립보드 텍스트 읽기 시작")
+
+        try:
+            # 클립보드에서 텍스트 읽기 (사용자가 미리 Cmd+C로 복사)
+            clipboard_text = pyperclip.paste()
+
+            if clipboard_text and clipboard_text.strip():
+                preview = clipboard_text[:50] + "..." if len(clipboard_text) > 50 else clipboard_text
+                log(f"[TTS] 읽기: {preview}")
+                TextOutput.show_notification("WhisperFlow TTS", f"읽는 중: {preview}")
+
+                self._ws_broadcast("broadcast_state", "tts_playing")
+
+                # Qwen TTS 사용 가능하면 Qwen, 아니면 기본 TTS
+                try:
+                    import urllib.request
+                    r = urllib.request.urlopen('http://localhost:9093/health', timeout=2)
+                    if r.status == 200:
+                        subprocess.Popen(
+                            ["/usr/bin/python3", "/Users/USER/.claude/hooks/qwen_tts_speak.py", clipboard_text],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL
+                        )
+                        return
+                except Exception:
+                    pass
+                # fallback
+                tts_reader.speak(clipboard_text)
+            else:
+                log("[TTS] 클립보드 비어있음")
+                TextOutput.show_notification("WhisperFlow", "먼저 텍스트를 복사해주세요 (Cmd+C)")
+
+        except Exception as e:
+            log(f"[TTS] 오류: {e}")
+            TextOutput.show_notification("WhisperFlow 오류", f"TTS 오류: {e}")
 
 
 def main():

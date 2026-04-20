@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>JARVIS HUD - Browser Feed Mockup</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0f;
+    color: #00d4ff;
+    font-family: 'Rajdhani', sans-serif;
+    overflow: hidden;
+    width: 1280px;
+    height: 800px;
+    position: relative;
+  }
+
+  .bg-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.015) 1px, transparent 1px);
+    background-size: 40px 40px;
+    z-index: 0;
+  }
+
+  .vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.7) 100%);
+    z-index: 1;
+  }
+
+  .scanlines {
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .hud-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+  }
+
+  /* === HUD 요소들 (간소화) === */
+  .corner { position: absolute; width: 60px; height: 60px; }
+  .corner::before, .corner::after { content: ''; position: absolute; background: rgba(0,212,255,0.3); }
+  .corner.tl { top: 20px; left: 20px; }
+  .corner.tl::before { top: 0; left: 0; width: 30px; height: 1px; }
+  .corner.tl::after { top: 0; left: 0; width: 1px; height: 30px; }
+  .corner.tr { top: 20px; right: 20px; }
+  .corner.tr::before { top: 0; right: 0; width: 30px; height: 1px; }
+  .corner.tr::after { top: 0; right: 0; width: 1px; height: 30px; }
+  .corner.bl { bottom: 20px; left: 20px; }
+  .corner.bl::before { bottom: 0; left: 0; width: 30px; height: 1px; }
+  .corner.bl::after { bottom: 0; left: 0; width: 1px; height: 30px; }
+  .corner.br { bottom: 20px; right: 20px; }
+  .corner.br::before { bottom: 0; right: 0; width: 30px; height: 1px; }
+  .corner.br::after { bottom: 0; right: 0; width: 1px; height: 30px; }
+
+  /* Status */
+  .status-panel {
+    position: absolute;
+    top: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+  }
+  .status-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    letter-spacing: 6px;
+    color: rgba(0,230,118,0.5);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .status-text {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: #00e676;
+    text-shadow: 0 0 20px rgba(0,230,118,0.3);
+  }
+  .hud-subtitle {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 14px;
+    font-weight: 400;
+    color: rgba(0,230,118,0.3);
+    letter-spacing: 5px;
+    margin-top: 8px;
+  }
+
+  /* === Arc Reactor (축소, 좌측으로) === */
+  .arc-reactor-mini {
+    position: absolute;
+    left: 80px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 180px;
+    height: 180px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .reactor-ring-m {
+    position: absolute;
+    border-radius: 50%;
+    border: 1.5px solid;
+  }
+  .reactor-ring-m.outer { width: 180px; height: 180px; border-color: rgba(0,230,118,0.15); animation: spin 20s linear infinite; }
+  .reactor-ring-m.mid { width: 140px; height: 140px; border-style: dashed; border-color: rgba(0,230,118,0.1); animation: spin 12s linear infinite reverse; }
+  .reactor-ring-m.inner { width: 100px; height: 100px; border-color: rgba(0,230,118,0.3); animation: spin 8s linear infinite; }
+
+  .reactor-core-m {
+    position: absolute;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,230,118,0.3) 0%, transparent 70%);
+    box-shadow: 0 0 40px rgba(0,230,118,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: #00e676;
+    text-shadow: 0 0 15px #00e676;
+  }
+
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  /* Waveform mini */
+  .waveform-mini {
+    position: absolute;
+    width: 200px;
+    height: 200px;
+  }
+  .wf-bar {
+    position: absolute;
+    width: 2px;
+    background: linear-gradient(to top, rgba(0,230,118,0.6), rgba(0,230,118,0.1));
+    border-radius: 1px;
+    transform-origin: center 100px;
+  }
+
+  /* === Browser Feed (핵심) === */
+  .browser-feed {
+    position: absolute;
+    top: 100px;
+    right: 40px;
+    width: 440px;
+    height: 300px;
+    border: 1px solid rgba(0,212,255,0.2);
+    background: rgba(0,5,15,0.8);
+    overflow: hidden;
+  }
+
+  .browser-feed::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,212,255,0.02) 3px, rgba(0,212,255,0.02) 6px);
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  .feed-header {
+    height: 24px;
+    background: rgba(0,212,255,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 10px;
+    border-bottom: 1px solid rgba(0,212,255,0.15);
+  }
+
+  .feed-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px;
+    letter-spacing: 3px;
+    color: rgba(0,212,255,0.6);
+  }
+
+  .feed-status {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 7px;
+    letter-spacing: 2px;
+    color: #00ff88;
+  }
+
+  .feed-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #00ff88;
+    box-shadow: 0 0 6px rgba(0,255,136,0.6);
+    animation: pulse-dot 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .feed-content {
+    position: relative;
+    width: 100%;
+    height: calc(100% - 24px);
+    overflow: hidden;
+  }
+
+  /* 시뮬레이션된 브라우저 화면 */
+  .fake-browser {
+    width: 100%;
+    height: 100%;
+    background: #111;
+    position: relative;
+    animation: browser-zoom 8s ease-in-out infinite;
+  }
+
+  @keyframes browser-zoom {
+    0% { transform: scale(1) translate(0, 0); }
+    30% { transform: scale(1.3) translate(-5%, -8%); }
+    60% { transform: scale(1.5) translate(-15%, -5%); }
+    80% { transform: scale(1.2) translate(-3%, -3%); }
+    100% { transform: scale(1) translate(0, 0); }
+  }
+
+  .fake-url-bar {
+    height: 22px;
+    background: #1a1a2e;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    gap: 6px;
+  }
+
+  .fake-dots {
+    display: flex;
+    gap: 3px;
+  }
+  .fake-dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+  }
+  .fake-dots span:first-child { background: #ff5f57; }
+  .fake-dots span:nth-child(2) { background: #ffbd2e; }
+  .fake-dots span:nth-child(3) { background: #28c840; }
+
+  .fake-url {
+    flex: 1;
+    height: 14px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    font-size: 8px;
+    color: rgba(255,255,255,0.4);
+    font-family: monospace;
+  }
+
+  .fake-page {
+    padding: 10px;
+    color: rgba(255,255,255,0.7);
+    font-size: 9px;
+    line-height: 1.6;
+  }
+
+  .fake-page .site-logo {
+    font-size: 14px;
+    font-weight: 700;
+    color: #ff6b00;
+    margin-bottom: 8px;
+  }
+
+  .fake-page .product-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .fake-page .product-card {
+    background: rgba(255,255,255,0.05);
+    border-radius: 3px;
+    padding: 6px;
+    text-align: center;
+  }
+
+  .fake-page .product-img {
+    width: 100%;
+    height: 40px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+    margin-bottom: 4px;
+  }
+
+  .fake-page .product-name {
+    font-size: 7px;
+    color: rgba(255,255,255,0.5);
+    margin-bottom: 2px;
+  }
+
+  .fake-page .product-price {
+    font-size: 8px;
+    color: #ff6b00;
+    font-weight: 600;
+  }
+
+  .fake-page .review-section {
+    margin-top: 10px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+  }
+
+  .fake-page .review-title {
+    font-size: 8px;
+    color: rgba(255,255,255,0.4);
+    margin-bottom: 4px;
+  }
+
+  .fake-page .review-item {
+    background: rgba(255,255,255,0.03);
+    padding: 4px 6px;
+    margin-bottom: 3px;
+    border-radius: 2px;
+    font-size: 7px;
+    color: rgba(255,255,255,0.5);
+  }
+
+  .fake-page .review-stars {
+    color: #ffbd2e;
+    font-size: 8px;
+  }
+
+  /* 하이라이트 커서 효과 */
+  .highlight-cursor {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border: 2px solid #00d4ff;
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(0,212,255,0.5), 0 0 20px rgba(0,212,255,0.2);
+    pointer-events: none;
+    animation: cursor-move 8s ease-in-out infinite;
+    z-index: 5;
+  }
+
+  .highlight-cursor::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 3px;
+    height: 3px;
+    background: #00d4ff;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  @keyframes cursor-move {
+    0% { top: 60px; left: 80px; }
+    15% { top: 80px; left: 120px; }
+    30% { top: 100px; left: 60px; }
+    50% { top: 140px; left: 200px; }
+    65% { top: 180px; left: 100px; }
+    80% { top: 200px; left: 150px; }
+    100% { top: 60px; left: 80px; }
+  }
+
+  /* 스캔 라인 오버레이 */
+  .feed-scan {
+    position: absolute;
+    top: 24px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(0,212,255,0.3), transparent);
+    animation: scan-down 3s linear infinite;
+    z-index: 4;
+  }
+
+  @keyframes scan-down {
+    0% { top: 24px; }
+    100% { top: 100%; }
+  }
+
+  /* 데이터 추출 표시 */
+  .feed-data-overlay {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    right: 8px;
+    display: flex;
+    justify-content: space-between;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 7px;
+    letter-spacing: 2px;
+    color: rgba(0,212,255,0.4);
+    z-index: 5;
+  }
+
+  .data-extract {
+    animation: data-blink 2s ease-in-out infinite;
+  }
+
+  @keyframes data-blink {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; color: #00ff88; }
+  }
+
+  /* === 대화 로그 (하단) === */
+  .conversation-log {
+    position: absolute;
+    bottom: 40px;
+    left: 40px;
+    width: 500px;
+    max-height: 160px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    mask-image: linear-gradient(to bottom, transparent 0%, black 30%, black 100%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 30%, black 100%);
+  }
+
+  .conv-msg {
+    padding: 5px 8px 5px 0;
+    margin-bottom: 3px;
+    display: flex;
+    gap: 6px;
+    align-items: stretch;
+    background: rgba(0,10,20,0.5);
+    backdrop-filter: blur(5px);
+  }
+
+  .msg-waveform-static {
+    width: 20px;
+    min-width: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 2px;
+  }
+
+  .wf-mini-bar {
+    width: 2px;
+    background: #00e676;
+    border-radius: 1px;
+    opacity: 0.5;
+  }
+
+  .msg-waveform-static.user .wf-mini-bar { background: #00d4ff; }
+
+  .msg-content { flex: 1; min-width: 0; }
+
+  .msg-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 7px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 1px;
+    color: rgba(0,212,255,0.4);
+  }
+
+  .msg-label.assistant { color: rgba(0,230,118,0.4); }
+
+  .msg-text {
+    font-size: 12px;
+    color: rgba(255,255,255,0.8);
+    line-height: 1.3;
+  }
+
+  /* Bottom bar */
+  .bottom-bar {
+    position: absolute;
+    bottom: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 40px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px;
+    letter-spacing: 3px;
+    color: rgba(0,212,255,0.2);
+  }
+
+  .connected-dot {
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #00ff88;
+    box-shadow: 0 0 4px rgba(0,255,136,0.5);
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+
+  .data-point {
+    position: absolute;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px;
+    color: rgba(0,212,255,0.2);
+    letter-spacing: 2px;
+  }
+</style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="vignette"></div>
+  <div class="scanlines"></div>
+
+  <div class="hud-container">
+    <div class="corner tl"></div>
+    <div class="corner tr"></div>
+    <div class="corner bl"></div>
+    <div class="corner br"></div>
+
+    <!-- Status -->
+    <div class="status-panel">
+      <div class="status-label">WhisperFlow Status</div>
+      <div class="status-text">SPEAKING</div>
+      <div class="hud-subtitle">VOICE OUTPUT :: STREAMING</div>
+    </div>
+
+    <!-- Arc Reactor (좌측, 축소) -->
+    <div class="arc-reactor-mini">
+      <div class="reactor-ring-m outer"></div>
+      <div class="reactor-ring-m mid"></div>
+      <div class="reactor-ring-m inner"></div>
+      <div class="waveform-mini" id="waveformMini"></div>
+      <div class="reactor-core-m">J</div>
+    </div>
+
+    <!-- Browser Feed (우측 상단) -->
+    <div class="browser-feed">
+      <div class="feed-header">
+        <span class="feed-title">BROWSER FEED</span>
+        <span class="feed-status"><span class="feed-dot"></span>LIVE</span>
+      </div>
+      <div class="feed-content">
+        <div class="fake-browser">
+          <div class="fake-url-bar">
+            <div class="fake-dots"><span></span><span></span><span></span></div>
+            <div class="fake-url">https://www.coupang.com/vp/products/...</div>
+          </div>
+          <div class="fake-page">
+            <div class="site-logo">C coupang</div>
+            <div class="product-grid">
+              <div class="product-card">
+                <div class="product-img"></div>
+                <div class="product-name">무선 이어폰 프로</div>
+                <div class="product-price">89,900원</div>
+              </div>
+              <div class="product-card">
+                <div class="product-img"></div>
+                <div class="product-name">블루투스 스피커</div>
+                <div class="product-price">45,000원</div>
+              </div>
+              <div class="product-card">
+                <div class="product-img"></div>
+                <div class="product-name">노이즈캔슬링 헤드폰</div>
+                <div class="product-price">159,000원</div>
+              </div>
+            </div>
+            <div class="review-section">
+              <div class="review-title">상품 리뷰 (2,847)</div>
+              <div class="review-item"><span class="review-stars">★★★★★</span> 음질이 정말 좋아요. 노이즈캔슬링도 완벽합니다.</div>
+              <div class="review-item"><span class="review-stars">★★★★☆</span> 배터리가 오래가서 만족합니다. 디자인도 예뻐요.</div>
+              <div class="review-item"><span class="review-stars">★★★★★</span> 가성비 최고! 이 가격에 이 품질이라니.</div>
+            </div>
+          </div>
+        </div>
+        <div class="highlight-cursor"></div>
+        <div class="feed-scan"></div>
+        <div class="feed-data-overlay">
+          <span class="data-extract">EXTRACTING REVIEWS...</span>
+          <span>2,847 ITEMS</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 대화 로그 (좌측 하단) -->
+    <div class="conversation-log">
+      <div class="conv-msg user">
+        <div class="msg-waveform-static user">
+          <div class="wf-mini-bar" style="height:6px"></div>
+          <div class="wf-mini-bar" style="height:12px"></div>
+          <div class="wf-mini-bar" style="height:8px"></div>
+          <div class="wf-mini-bar" style="height:14px"></div>
+          <div class="wf-mini-bar" style="height:5px"></div>
+        </div>
+        <div class="msg-content">
+          <div class="msg-label">USER INPUT</div>
+          <div class="msg-text">쿠팡에서 무선 이어폰 리뷰 좀 수집해줘</div>
+        </div>
+      </div>
+      <div class="conv-msg assistant">
+        <div class="msg-waveform-static">
+          <div class="wf-mini-bar" style="height:8px"></div>
+          <div class="wf-mini-bar" style="height:14px"></div>
+          <div class="wf-mini-bar" style="height:10px"></div>
+          <div class="wf-mini-bar" style="height:16px"></div>
+          <div class="wf-mini-bar" style="height:7px"></div>
+        </div>
+        <div class="msg-content">
+          <div class="msg-label assistant">CLAUDE OUTPUT</div>
+          <div class="msg-text">네, 쿠팡에서 무선 이어폰 리뷰를 수집하고 있습니다. 현재 2,847개의 리뷰를 분석 중입니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="data-point" style="top: 150px; left: 50px;">SYS.OK</div>
+    <div class="data-point" style="bottom: 220px; left: 50px;">BUFFER 2.4s</div>
+
+    <div class="bottom-bar">
+      <span>WHISPERFLOW v1.0</span>
+      <span><span class="connected-dot"></span>CONNECTED</span>
+      <span>FPS 120</span>
+    </div>
+  </div>
+
+  <script>
+    // Waveform mini bars
+    const wf = document.getElementById('waveformMini');
+    for (let i = 0; i < 48; i++) {
+      const bar = document.createElement('div');
+      bar.className = 'wf-bar';
+      const angle = (i / 48) * 360;
+      const h = 5 + Math.random() * 20;
+      bar.style.height = h + 'px';
+      bar.style.transform = `rotate(${angle}deg) translateY(-${80 + h/2}px)`;
+      bar.style.opacity = 0.3 + Math.random() * 0.5;
+      wf.appendChild(bar);
+    }
+  </script>
+</body>
+</html>

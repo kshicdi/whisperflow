@@ -1,0 +1,1475 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JARVIS HUD - WhisperFlow</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --theme-r: 0;
+    --theme-g: 212;
+    --theme-b: 255;
+    --theme: rgb(var(--theme-r), var(--theme-g), var(--theme-b));
+    --theme-03: rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.3);
+    --theme-015: rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.15);
+    --theme-02: rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.2);
+    --theme-04: rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.4);
+    --theme-05: rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.5);
+    --theme-08: rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.8);
+    --theme-01: rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.1);
+    --ring-speed: 20s;
+    --ring-mid-speed: 15s;
+    --ring-inner-speed: 10s;
+  }
+
+  body {
+    background: #0a0a0f;
+    color: var(--theme);
+    font-family: 'Rajdhani', sans-serif;
+    overflow: hidden;
+    width: 1280px;
+    height: 800px;
+    position: relative;
+  }
+
+  /* Background grid */
+  .bg-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--theme-015) 1px, transparent 1px),
+      linear-gradient(90deg, var(--theme-015) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.2;
+    z-index: 0;
+  }
+
+  /* Radial vignette */
+  .vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.7) 100%);
+    z-index: 1;
+  }
+
+  .hud-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* === Central Arc Reactor === */
+  .arc-reactor {
+    position: absolute;
+    width: 320px;
+    height: 320px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .reactor-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 2px solid var(--theme-03);
+    transition: border-color 0.6s ease;
+  }
+
+  .reactor-ring.outer {
+    width: 320px;
+    height: 320px;
+    border-color: var(--theme-015);
+    animation: spin-slow var(--ring-speed) linear infinite;
+  }
+
+  .reactor-ring.outer::before {
+    content: '';
+    position: absolute;
+    top: -2px; left: 50%;
+    width: 8px; height: 8px;
+    background: var(--theme);
+    border-radius: 50%;
+    transform: translateX(-50%);
+    box-shadow: 0 0 10px var(--theme), 0 0 20px var(--theme);
+  }
+
+  .reactor-ring.mid {
+    width: 260px;
+    height: 260px;
+    border-style: dashed;
+    border-color: var(--theme-02);
+    animation: spin-slow var(--ring-mid-speed) linear infinite reverse;
+  }
+
+  .reactor-ring.inner {
+    width: 200px;
+    height: 200px;
+    border-color: var(--theme-04);
+    animation: spin-slow var(--ring-inner-speed) linear infinite;
+    transition: border-color 0.6s ease, box-shadow 0.6s ease;
+  }
+
+  .reactor-ring.inner::after {
+    content: '';
+    position: absolute;
+    inset: 10px;
+    border-radius: 50%;
+    border: 1px solid var(--theme-015);
+  }
+
+  .reactor-core {
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--theme-04) 0%, var(--theme-01) 50%, transparent 70%);
+    box-shadow: 0 0 60px var(--theme-03), 0 0 120px var(--theme-01);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.6s ease, box-shadow 0.6s ease;
+  }
+
+  .reactor-core .icon {
+    font-size: 28px;
+    color: var(--theme);
+    text-shadow: 0 0 20px var(--theme);
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    letter-spacing: 2px;
+    transition: color 0.6s ease;
+  }
+
+  /* === Waveform Ring === */
+  .waveform-ring {
+    position: absolute;
+    width: 360px;
+    height: 360px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .waveform-bar {
+    position: absolute;
+    width: 3px;
+    background: linear-gradient(to top, var(--theme-08), var(--theme-02));
+    border-radius: 2px;
+    transform-origin: center 180px;
+    box-shadow: 0 0 4px var(--theme-03);
+    transition: background 0.6s ease;
+  }
+
+  /* === Status Indicators === */
+  .status-panel {
+    position: absolute;
+    top: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+  }
+
+  .status-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    letter-spacing: 6px;
+    color: var(--theme-05);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    transition: color 0.6s ease;
+  }
+
+  .status-text {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--theme);
+    text-shadow: 0 0 20px var(--theme-03);
+    transition: color 0.6s ease, text-shadow 0.6s ease;
+  }
+
+  /* === Side Panels === */
+  .side-panel {
+    position: absolute;
+    width: 260px;
+    padding: 16px 20px;
+    border: 1px solid var(--theme-015);
+    background: rgba(0, 10, 20, 0.6);
+    backdrop-filter: blur(10px);
+    transition: border-color 0.6s ease;
+  }
+
+  .side-panel.left {
+    left: 40px;
+    top: 50%;
+    transform: translateY(-50%);
+    border-left: 2px solid var(--theme-04);
+    clip-path: polygon(0 0, 100% 4%, 100% 96%, 0 100%);
+  }
+
+  .side-panel.right {
+    right: 40px;
+    top: 50%;
+    transform: translateY(-50%);
+    border-right: 2px solid var(--theme-04);
+    clip-path: polygon(0 4%, 100% 0, 100% 100%, 0 96%);
+  }
+
+  .panel-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px;
+    letter-spacing: 4px;
+    color: var(--theme-05);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--theme-01);
+    transition: color 0.6s ease;
+  }
+
+  .panel-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    font-size: 13px;
+  }
+
+  .panel-row .label {
+    color: var(--theme-04);
+    font-size: 11px;
+    letter-spacing: 1px;
+    transition: color 0.6s ease;
+  }
+
+  .panel-row .value {
+    color: var(--theme);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    transition: color 0.6s ease;
+  }
+
+  .panel-row .value.active {
+    color: #00ff88;
+    text-shadow: 0 0 8px rgba(0, 255, 136, 0.3);
+  }
+
+  .panel-row .value.warning {
+    color: #ff3b3b;
+    text-shadow: 0 0 8px rgba(255, 59, 59, 0.3);
+  }
+
+  /* === Browser Feed === */
+  .browser-feed {
+    position: absolute;
+    top: 120px;
+    right: 30px;
+    width: 340px;
+    height: 230px;
+    border: 1px solid rgba(0, 212, 255, 0.2);
+    background: rgba(0, 5, 15, 0.85);
+    overflow: hidden;
+    display: none;  /* 기본 숨김 — browser_frame 수신 시 표시 */
+    z-index: 5;
+  }
+
+  .browser-feed.active {
+    display: block;
+    animation: feed-appear 0.5s ease-out;
+  }
+
+  @keyframes feed-appear {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .feed-header {
+    height: 22px;
+    background: rgba(0, 212, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 10px;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.15);
+  }
+
+  .feed-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px;
+    letter-spacing: 3px;
+    color: rgba(0, 212, 255, 0.6);
+  }
+
+  .feed-status {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 7px;
+    letter-spacing: 2px;
+    color: #00ff88;
+  }
+
+  .feed-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #00ff88;
+    box-shadow: 0 0 6px rgba(0, 255, 136, 0.6);
+    animation: pulse-feed-dot 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse-feed-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .feed-content {
+    position: relative;
+    width: 100%;
+    height: calc(100% - 22px);
+    overflow: hidden;
+  }
+
+  .feed-content img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* 스캔라인 오버레이 */
+  .feed-scan {
+    position: absolute;
+    top: 22px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.25), transparent);
+    animation: scan-down 3s linear infinite;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  @keyframes scan-down {
+    0% { top: 22px; }
+    100% { top: calc(100% - 2px); }
+  }
+
+  .feed-scanlines {
+    position: absolute;
+    top: 22px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0, 212, 255, 0.015) 3px, rgba(0, 212, 255, 0.015) 6px);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* === Conversation Log === */
+  .conversation-log {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 720px;
+    max-height: 220px;
+    overflow: hidden;  /* not overflow-y: scroll — we control scroll programmatically */
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    mask-image: linear-gradient(to bottom, transparent 0%, black 30%, black 100%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 30%, black 100%);
+  }
+
+  .conv-msg {
+    padding: 6px 8px 6px 0;
+    margin-bottom: 4px;
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+    background: rgba(0, 10, 20, 0.5);
+    backdrop-filter: blur(5px);
+    animation: msg-slide-in 0.4s ease-out;
+    transition: opacity 0.6s ease;
+  }
+
+  .conv-msg.user {
+    /* border via waveform canvas */
+  }
+
+  .conv-msg.assistant {
+    /* border via waveform canvas */
+  }
+
+  /* Mini waveform bar (replaces border-left) */
+  .msg-waveform {
+    width: 24px;
+    min-width: 24px;
+    flex-shrink: 0;
+  }
+
+  .msg-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .conv-msg .msg-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+
+  .conv-msg.user .msg-label {
+    color: rgba(0, 212, 255, 0.5);
+  }
+
+  .conv-msg.assistant .msg-label {
+    color: rgba(0, 255, 136, 0.5);
+  }
+
+  .conv-msg .msg-text {
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.85);
+    word-wrap: break-word;
+  }
+
+  .msg-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 13px;
+    background: #00ff88;
+    margin-left: 2px;
+    vertical-align: middle;
+    animation: blink 1s step-end infinite;
+  }
+
+  @keyframes msg-slide-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* === Corner Decorations === */
+  .corner {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+  }
+
+  .corner::before, .corner::after {
+    content: '';
+    position: absolute;
+    background: var(--theme-03);
+    transition: background 0.6s ease;
+  }
+
+  .corner.tl { top: 20px; left: 20px; }
+  .corner.tl::before { top: 0; left: 0; width: 30px; height: 1px; }
+  .corner.tl::after { top: 0; left: 0; width: 1px; height: 30px; }
+
+  .corner.tr { top: 20px; right: 20px; }
+  .corner.tr::before { top: 0; right: 0; width: 30px; height: 1px; }
+  .corner.tr::after { top: 0; right: 0; width: 1px; height: 30px; }
+
+  .corner.bl { bottom: 20px; left: 20px; }
+  .corner.bl::before { bottom: 0; left: 0; width: 30px; height: 1px; }
+  .corner.bl::after { bottom: 0; left: 0; width: 1px; height: 30px; }
+
+  .corner.br { bottom: 20px; right: 20px; }
+  .corner.br::before { bottom: 0; right: 0; width: 30px; height: 1px; }
+  .corner.br::after { bottom: 0; right: 0; width: 1px; height: 30px; }
+
+  /* === Scan Lines === */
+  .scanlines {
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.03) 2px,
+      rgba(0, 0, 0, 0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  /* === HUD Lines connecting center to panels === */
+  .hud-line {
+    position: absolute;
+    height: 1px;
+    background: linear-gradient(90deg, var(--theme-03), var(--theme-015));
+    top: 50%;
+    transition: background 0.6s ease;
+  }
+
+  .hud-line.left {
+    left: 300px;
+    width: 180px;
+    background: linear-gradient(90deg, var(--theme-015), var(--theme-03));
+  }
+
+  .hud-line.right {
+    right: 300px;
+    width: 180px;
+  }
+
+  /* === Floating data points === */
+  .data-point {
+    position: absolute;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    color: rgba(0, 212, 255, 0.25);
+    letter-spacing: 2px;
+    transition: color 0.6s ease;
+  }
+
+  /* === Bottom bar === */
+  .bottom-bar {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 40px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: rgba(0, 212, 255, 0.25);
+    transition: color 0.6s ease;
+  }
+
+  .ws-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .ws-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #ff3b3b;
+    transition: background 0.3s ease;
+  }
+
+  .ws-dot.connected {
+    background: #00ff88;
+    box-shadow: 0 0 6px rgba(0, 255, 136, 0.5);
+  }
+
+  /* Time display */
+  .time-display {
+    position: absolute;
+    top: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--theme-03);
+    letter-spacing: 5px;
+    transition: color 0.6s ease, opacity 0.6s ease;
+    white-space: nowrap;
+  }
+
+  /* === Animations === */
+  @keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes pulse-text {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  @keyframes pulse-ring {
+    0%, 100% { box-shadow: 0 0 0 0 transparent; }
+    50% { box-shadow: 0 0 20px 5px var(--theme-03); }
+  }
+
+  /* State: recording - pulsing status text */
+  .state-recording .status-text {
+    animation: pulse-text 1.5s ease-in-out infinite;
+  }
+
+  /* State: processing - spinner on core */
+  .state-processing .reactor-core::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    border-top-color: var(--theme);
+    animation: spin-slow 1s linear infinite;
+  }
+</style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="vignette"></div>
+  <div class="scanlines"></div>
+
+  <div class="hud-container">
+    <!-- Corners -->
+    <div class="corner tl"></div>
+    <div class="corner tr"></div>
+    <div class="corner bl"></div>
+    <div class="corner br"></div>
+
+    <!-- Time -->
+    <div class="time-display" id="timeDisplay">AWAITING COMMAND</div>
+
+    <!-- Status -->
+    <div class="status-panel">
+      <div class="status-label">WhisperFlow Status</div>
+      <div class="status-text" id="statusText">STANDBY</div>
+    </div>
+
+    <!-- HUD Lines -->
+    <div class="hud-line left"></div>
+    <div class="hud-line right"></div>
+
+    <!-- Left Panel - System -->
+    <div class="side-panel left">
+      <div class="panel-title">System</div>
+      <div class="panel-row">
+        <span class="label">MODEL</span>
+        <span class="value" id="valModel">LARGE-V3</span>
+      </div>
+      <div class="panel-row">
+        <span class="label">LANGUAGE</span>
+        <span class="value active" id="valLang">KOREAN</span>
+      </div>
+      <div class="panel-row">
+        <span class="label">SAMPLE RATE</span>
+        <span class="value">16,000 Hz</span>
+      </div>
+      <div class="panel-row">
+        <span class="label">OUTPUT</span>
+        <span class="value">TYPE</span>
+      </div>
+      <div class="panel-row">
+        <span class="label">TTS ENGINE</span>
+        <span class="value active">QWEN</span>
+      </div>
+    </div>
+
+    <!-- Right Panel - Session -->
+    <div class="side-panel right">
+      <div class="panel-title">Session</div>
+      <div class="panel-row">
+        <span class="label">DURATION</span>
+        <span class="value" id="valDuration">00:00.0</span>
+      </div>
+      <div class="panel-row">
+        <span class="label">AUDIO LEVEL</span>
+        <span class="value active" id="valAudioLevel">0.00</span>
+      </div>
+      <div class="panel-row">
+        <span class="label">MODE</span>
+        <span class="value" id="valMode">YOUTUBE</span>
+      </div>
+      <div class="panel-row">
+        <span class="label">HISTORY</span>
+        <span class="value" id="valHistory">0 ITEMS</span>
+      </div>
+      <div class="panel-row">
+        <span class="label">TTS SPEED</span>
+        <span class="value">1.4x</span>
+      </div>
+    </div>
+
+    <!-- Central Arc Reactor -->
+    <div class="arc-reactor" id="arcReactor">
+      <div class="reactor-ring outer" id="ringOuter"></div>
+      <div class="reactor-ring mid" id="ringMid"></div>
+      <div class="reactor-ring inner" id="ringInner"></div>
+
+      <!-- Waveform bars around the ring -->
+      <div class="waveform-ring" id="waveform"></div>
+
+      <div class="reactor-core" id="reactorCore">
+        <span class="icon">J</span>
+      </div>
+    </div>
+
+    <!-- Browser Feed -->
+    <div class="browser-feed" id="browserFeed">
+      <div class="feed-header">
+        <span class="feed-title">BROWSER FEED</span>
+        <span class="feed-status"><span class="feed-dot"></span>LIVE</span>
+      </div>
+      <div class="feed-content">
+        <img id="feedImage" src="" alt="">
+      </div>
+      <div class="feed-scan"></div>
+      <div class="feed-scanlines"></div>
+    </div>
+
+    <!-- Conversation Log -->
+    <div class="conversation-log" id="conversationLog">
+      <!-- Messages will be appended here dynamically -->
+    </div>
+
+    <!-- Floating data -->
+    <div class="data-point" style="top: 180px; left: 120px;" id="dpSys">SYS.OK</div>
+    <div class="data-point" style="top: 220px; right: 100px;" id="dpLatency">LATENCY --ms</div>
+    <div class="data-point" style="bottom: 180px; left: 80px;" id="dpBuffer">BUFFER 0.0s</div>
+    <div class="data-point" style="bottom: 200px; right: 120px;" id="dpGpu">GPU --%</div>
+
+    <!-- Bottom bar -->
+    <div class="bottom-bar">
+      <span>WHISPERFLOW v1.0</span>
+      <span class="ws-status">
+        <span class="ws-dot" id="wsDot"></span>
+        <span id="wsLabel">DISCONNECTED</span>
+      </span>
+      <span id="fpsDisplay">FPS 60</span>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================
+    //  CONFIGURATION
+    // ============================================================
+    const WS_URL = 'ws://localhost:8767';
+    const RECONNECT_INTERVAL = 2000;
+    const BAR_COUNT = 72;
+
+    // ============================================================
+    //  DOM REFS
+    // ============================================================
+    const $ = id => document.getElementById(id);
+    const waveformEl = $('waveform');
+    const statusText = $('statusText');
+    const arcReactor = $('arcReactor');
+    const valAudioLevel = $('valAudioLevel');
+    const valDuration = $('valDuration');
+    const timeDisplay = $('timeDisplay');
+    const conversationLog = $('conversationLog');
+    const wsDot = $('wsDot');
+    const wsLabel = $('wsLabel');
+    const ringOuter = $('ringOuter');
+    const ringMid = $('ringMid');
+    const ringInner = $('ringInner');
+    const reactorCore = $('reactorCore');
+
+    // ============================================================
+    //  STATE
+    // ============================================================
+    let currentState = 'idle';
+    let currentAudioLevel = 0;
+    let targetAudioLevel = 0;
+    let ws = null;
+    let reconnectTimer = null;
+    let recordingStartTime = null;
+    let durationTimer = null;
+    let frameCount = 0;
+    let lastFpsTime = performance.now();
+
+    // Waveform bar elements
+    const bars = [];
+
+    // ============================================================
+    //  THEME COLORS per state
+    // ============================================================
+    const THEMES = {
+      idle:         { r: 0,   g: 212, b: 255, label: 'STANDBY',       labelClass: '' },
+      recording:    { r: 255, g: 59,  b: 59,  label: '\u25CF RECORDING',   labelClass: 'state-recording' },
+      processing:   { r: 255, g: 170, b: 30,  label: 'PROCESSING...', labelClass: 'state-processing' },
+      thinking:     { r: 180, g: 130, b: 255, label: 'THINKING...',   labelClass: 'state-processing' },
+      tts_playing:  { r: 0,   g: 230, b: 118, label: 'SPEAKING',      labelClass: '' },
+    };
+
+    // ============================================================
+    //  INIT WAVEFORM BARS
+    // ============================================================
+    for (let i = 0; i < BAR_COUNT; i++) {
+      const bar = document.createElement('div');
+      bar.className = 'waveform-bar';
+      const angle = (i / BAR_COUNT) * 360;
+      bar.dataset.angle = angle;
+      bar.dataset.index = i;
+      bar.style.height = '8px';
+      bar.style.transform = `rotate(${angle}deg) translateY(-${150 + 4}px)`;
+      bar.style.opacity = '0.3';
+      waveformEl.appendChild(bar);
+      bars.push(bar);
+    }
+
+    // ============================================================
+    //  APPLY THEME
+    // ============================================================
+    function applyTheme(state) {
+      const t = THEMES[state] || THEMES.idle;
+      const root = document.documentElement;
+      root.style.setProperty('--theme-r', t.r);
+      root.style.setProperty('--theme-g', t.g);
+
+      // HUD 상태 텍스트 업데이트
+      updateHudText(state);
+      root.style.setProperty('--theme-b', t.b);
+
+      // Status text
+      statusText.textContent = t.label;
+
+      // Arc reactor state class
+      arcReactor.className = 'arc-reactor';
+      if (t.labelClass) arcReactor.classList.add(t.labelClass);
+
+      // Ring speeds
+      switch (state) {
+        case 'idle':
+          root.style.setProperty('--ring-speed', '20s');
+          root.style.setProperty('--ring-mid-speed', '15s');
+          root.style.setProperty('--ring-inner-speed', '10s');
+          break;
+        case 'recording':
+          root.style.setProperty('--ring-speed', '10s');
+          root.style.setProperty('--ring-mid-speed', '7s');
+          root.style.setProperty('--ring-inner-speed', '4s');
+          break;
+        case 'processing':
+          root.style.setProperty('--ring-speed', '4s');
+          root.style.setProperty('--ring-mid-speed', '3s');
+          root.style.setProperty('--ring-inner-speed', '2s');
+          break;
+        case 'thinking':
+          root.style.setProperty('--ring-speed', '8s');
+          root.style.setProperty('--ring-mid-speed', '6s');
+          root.style.setProperty('--ring-inner-speed', '4s');
+          break;
+        case 'tts_playing':
+          root.style.setProperty('--ring-speed', '12s');
+          root.style.setProperty('--ring-mid-speed', '9s');
+          root.style.setProperty('--ring-inner-speed', '6s');
+          break;
+      }
+
+      // Duration tracking
+      if (state === 'recording') {
+        recordingStartTime = Date.now();
+        durationTimer = setInterval(updateDuration, 100);
+      } else {
+        if (durationTimer) { clearInterval(durationTimer); durationTimer = null; }
+        if (state === 'idle') {
+          valDuration.textContent = '00:00.0';
+          valDuration.classList.remove('warning');
+        }
+      }
+    }
+
+    function updateDuration() {
+      if (!recordingStartTime) return;
+      const elapsed = (Date.now() - recordingStartTime) / 1000;
+      const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
+      const secs = Math.floor(elapsed % 60).toString().padStart(2, '0');
+      const tenths = Math.floor((elapsed * 10) % 10);
+      valDuration.textContent = `${mins}:${secs}.${tenths}`;
+      valDuration.classList.toggle('warning', elapsed > 2);
+    }
+
+    // ============================================================
+    //  WAVEFORM ANIMATION (requestAnimationFrame)
+    // ============================================================
+    let animTime = 0;
+
+    function animateWaveform(timestamp) {
+      animTime = timestamp * 0.001; // seconds
+      // Smooth audio level interpolation
+      currentAudioLevel += (targetAudioLevel - currentAudioLevel) * 0.15;
+
+      const level = currentAudioLevel;
+
+      for (let i = 0; i < BAR_COUNT; i++) {
+        const bar = bars[i];
+        const angle = parseFloat(bar.dataset.angle);
+        const rad = angle * Math.PI / 180;
+        let h;
+
+        switch (currentState) {
+          case 'idle': {
+            // Gentle sine wave
+            const wave = Math.sin(rad * 3 + animTime * 1.2) * 0.5 + 0.5;
+            const wave2 = Math.sin(rad * 5 - animTime * 0.8) * 0.3 + 0.5;
+            h = 6 + (wave * wave2) * 18;
+            break;
+          }
+          case 'recording': {
+            // React to audio level with randomness
+            const base = 6 + level * 40;
+            const wave = Math.sin(rad * 4 + animTime * 3) * 0.5 + 0.5;
+            const noise = Math.sin(i * 7.3 + animTime * 8) * 0.3 + 0.7;
+            h = base * wave * noise + 4;
+            break;
+          }
+          case 'processing': {
+            // Rotating loading pattern
+            const sweep = (animTime * 2 + angle / 360) % 1;
+            const pulse = Math.pow(Math.sin(sweep * Math.PI), 3);
+            h = 6 + pulse * 30;
+            break;
+          }
+          case 'thinking': {
+            // Pulsing brain-like pattern (slower, deeper)
+            const breathe = Math.sin(animTime * 1.5) * 0.4 + 0.6;
+            const spiral = Math.sin(rad * 2 + animTime * 1.8) * 0.5 + 0.5;
+            const drift = Math.sin(rad * 5 - animTime * 0.6) * 0.3 + 0.5;
+            h = 6 + (breathe * spiral + drift) * 20;
+            break;
+          }
+          case 'tts_playing': {
+            // Rhythmic pulsing
+            const beat = Math.sin(animTime * 4) * 0.5 + 0.5;
+            const wave = Math.sin(rad * 2 + animTime * 2) * 0.5 + 0.5;
+            const accent = Math.sin(rad * 6 - animTime * 3) * 0.3 + 0.5;
+            h = 6 + (beat * wave + accent) * 22;
+            break;
+          }
+          default:
+            h = 8;
+        }
+
+        const opacity = 0.25 + (h / 50) * 0.75;
+        bar.style.height = h + 'px';
+        bar.style.transform = `rotate(${angle}deg) translateY(-${150 + h/2}px)`;
+        bar.style.opacity = opacity;
+      }
+
+      // Audio level value display
+      valAudioLevel.textContent = currentAudioLevel.toFixed(2);
+
+      // FPS counter
+      frameCount++;
+      if (timestamp - lastFpsTime >= 1000) {
+        $('fpsDisplay').textContent = `FPS ${frameCount}`;
+        frameCount = 0;
+        lastFpsTime = timestamp;
+      }
+
+      requestAnimationFrame(animateWaveform);
+    }
+
+    requestAnimationFrame(animateWaveform);
+
+    // ============================================================
+    //  REAL-TIME CLOCK
+    // ============================================================
+    // 상태별 HUD 텍스트
+    const HUD_TEXT = {
+      idle:        'AWAITING COMMAND',
+      recording:   'VOICE CAPTURE :: ACTIVE',
+      processing:  'TRANSCRIBING...',
+      thinking:    'PROCESSING QUERY...',
+      tts_playing: 'VOICE OUTPUT :: STREAMING',
+    };
+
+    function updateHudText(state) {
+      timeDisplay.textContent = HUD_TEXT[state] || HUD_TEXT.idle;
+    }
+
+    // ============================================================
+    //  CONVERSATION LOG
+    // ============================================================
+    const MAX_MESSAGES = 20;
+    let activeTypingTimer = null;
+    let activeTypingEl = null;
+    let activeCursorEl = null;
+    let activeOutputMsg = null;
+    let activeWaveformAnim = null;
+    let activeWaveformCanvas = null;
+    let listeningMsg = null;        // 녹음 중 LISTENING 메시지
+    let listeningWaveform = null;   // 녹음 중 파형 캔버스
+
+    // ---- Mini Waveform ----
+    function createWaveform(role) {
+      const canvas = document.createElement('canvas');
+      canvas.className = 'msg-waveform';
+      canvas.width = 24;
+      canvas.height = 40;
+      const color = role === 'user' ? '#00d4ff' : '#00ff88';
+      // 정적 파형 그리기 (초기 상태)
+      drawStaticWaveform(canvas, color, 0.3);
+      return canvas;
+    }
+
+    function drawStaticWaveform(canvas, color, intensity) {
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      const barCount = 5;
+      const barW = 2;
+      const gap = (w - barCount * barW) / (barCount + 1);
+      ctx.fillStyle = color;
+      ctx.globalAlpha = 0.4;
+      for (let i = 0; i < barCount; i++) {
+        const x = gap + i * (barW + gap);
+        const barH = 4 + Math.sin(i * 1.2) * intensity * 12 + intensity * 8;
+        const y = (h - barH) / 2;
+        ctx.fillRect(x, y, barW, barH);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function animateWaveformCanvas(canvas, color) {
+      // 활성 파형 멈추기
+      if (activeWaveformAnim) {
+        cancelAnimationFrame(activeWaveformAnim);
+        // 이전 캔버스를 정적으로
+        if (activeWaveformCanvas) drawStaticWaveform(activeWaveformCanvas, activeWaveformCanvas.dataset.color, 0.3);
+      }
+      activeWaveformCanvas = canvas;
+      canvas.dataset.color = color;
+
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      const barCount = 5;
+      const barW = 2;
+      const gap = (w - barCount * barW) / (barCount + 1);
+
+      function draw(t) {
+        ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = color;
+        for (let i = 0; i < barCount; i++) {
+          const x = gap + i * (barW + gap);
+          const wave = Math.sin(t * 0.005 + i * 1.8) * 0.5 + 0.5;
+          const pulse = Math.sin(t * 0.008 + i * 0.7) * 0.3 + 0.7;
+          const barH = 4 + wave * pulse * 28;
+          const y = (h - barH) / 2;
+          ctx.globalAlpha = 0.5 + wave * 0.5;
+          ctx.fillRect(x, y, barW, barH);
+        }
+        ctx.globalAlpha = 1;
+        activeWaveformAnim = requestAnimationFrame(draw);
+      }
+      activeWaveformAnim = requestAnimationFrame(draw);
+    }
+
+    function stopWaveformAnim() {
+      if (activeWaveformAnim) {
+        cancelAnimationFrame(activeWaveformAnim);
+        activeWaveformAnim = null;
+      }
+      if (activeWaveformCanvas) {
+        drawStaticWaveform(activeWaveformCanvas, activeWaveformCanvas.dataset.color || '#00ff88', 0.3);
+        activeWaveformCanvas = null;
+      }
+    }
+
+    // ---- Listening message (녹음 중 표시) ----
+    function showListening() {
+      if (listeningMsg) return;  // 이미 표시 중
+
+      listeningMsg = document.createElement('div');
+      listeningMsg.className = 'conv-msg user';
+
+      const waveform = createWaveform('user');
+      listeningWaveform = waveform;
+      const content = document.createElement('div');
+      content.className = 'msg-content';
+
+      const label = document.createElement('div');
+      label.className = 'msg-label';
+      label.textContent = 'USER INPUT';
+
+      const textEl = document.createElement('span');
+      textEl.className = 'msg-text';
+      textEl.textContent = 'LISTENING...';
+      textEl.style.color = 'rgba(0, 212, 255, 0.5)';
+      textEl.style.fontStyle = 'italic';
+
+      content.appendChild(label);
+      content.appendChild(textEl);
+      listeningMsg.appendChild(waveform);
+      listeningMsg.appendChild(content);
+      conversationLog.appendChild(listeningMsg);
+      conversationLog.scrollTop = conversationLog.scrollHeight;
+
+      // 파형 애니메이션 시작
+      animateWaveformCanvas(waveform, '#00d4ff');
+    }
+
+    function updateListeningWaveform(level) {
+      // 오디오 레벨에 반응하는 파형 (녹음 중)
+      if (!listeningWaveform) return;
+      const canvas = listeningWaveform;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      const barCount = 5;
+      const barW = 2;
+      const gap = (w - barCount * barW) / (barCount + 1);
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = '#00d4ff';
+      const t = performance.now();
+      for (let i = 0; i < barCount; i++) {
+        const x = gap + i * (barW + gap);
+        const wave = Math.sin(t * 0.006 + i * 1.5) * 0.3 + 0.7;
+        const barH = 4 + level * wave * 30;
+        const y = (h - barH) / 2;
+        ctx.globalAlpha = 0.5 + level * 0.5;
+        ctx.fillRect(x, y, barW, barH);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function replaceListeningWithText(text) {
+      if (listeningMsg) {
+        // LISTENING 메시지를 실제 텍스트로 교체
+        const textEl = listeningMsg.querySelector('.msg-text');
+        if (textEl) {
+          textEl.textContent = text;
+          textEl.style.color = '';
+          textEl.style.fontStyle = '';
+        }
+        // 파형을 정적 잔상으로
+        if (listeningWaveform) {
+          drawStaticWaveform(listeningWaveform, '#00d4ff', 0.6);
+        }
+        // 활성 파형 정리 (이 캔버스가 activeWaveformCanvas면)
+        if (activeWaveformCanvas === listeningWaveform) {
+          cancelAnimationFrame(activeWaveformAnim);
+          activeWaveformAnim = null;
+          activeWaveformCanvas = null;
+        }
+        listeningMsg = null;
+        listeningWaveform = null;
+      }
+    }
+
+    function removeListening() {
+      if (listeningMsg) {
+        listeningMsg.remove();
+        if (activeWaveformCanvas === listeningWaveform) {
+          cancelAnimationFrame(activeWaveformAnim);
+          activeWaveformAnim = null;
+          activeWaveformCanvas = null;
+        }
+        listeningMsg = null;
+        listeningWaveform = null;
+      }
+    }
+
+    function addMessage(role, text) {
+      const msg = document.createElement('div');
+      msg.className = `conv-msg ${role}`;
+
+      const waveform = createWaveform(role);
+      const content = document.createElement('div');
+      content.className = 'msg-content';
+
+      const label = document.createElement('div');
+      label.className = 'msg-label';
+      label.textContent = role === 'user' ? 'USER INPUT' : 'CLAUDE OUTPUT';
+
+      const textEl = document.createElement('span');
+      textEl.className = 'msg-text';
+      textEl.textContent = text;
+
+      content.appendChild(label);
+      content.appendChild(textEl);
+      msg.appendChild(waveform);
+      msg.appendChild(content);
+      conversationLog.appendChild(msg);
+
+      while (conversationLog.children.length > MAX_MESSAGES) {
+        conversationLog.removeChild(conversationLog.firstChild);
+      }
+      conversationLog.scrollTop = conversationLog.scrollHeight;
+
+      // 유저 입력 파형: 짧게 애니메이션 후 정지
+      if (role === 'user') {
+        const color = '#00d4ff';
+        animateWaveformCanvas(waveform, color);
+        setTimeout(() => {
+          if (activeWaveformCanvas === waveform) {
+            stopWaveformAnim();
+            drawStaticWaveform(waveform, color, 0.6);  // 잔상
+          }
+        }, 1500);
+      }
+
+      return msg;
+    }
+
+    function stopActiveTyping() {
+      if (activeTypingTimer) {
+        clearInterval(activeTypingTimer);
+        activeTypingTimer = null;
+        // 남은 텍스트 즉시 표시
+        if (activeTypingEl && activeTypingEl.dataset.remaining) {
+          activeTypingEl.textContent += activeTypingEl.dataset.remaining;
+          activeTypingEl.dataset.remaining = '';
+        }
+      }
+      if (activeCursorEl) {
+        activeCursorEl.remove();
+        activeCursorEl = null;
+      }
+    }
+
+    function appendChunk(text, duration) {
+      // 이전 타이핑 완료 처리
+      stopActiveTyping();
+
+      // assistant 메시지가 없으면 새로 생성
+      if (!activeOutputMsg) {
+        activeOutputMsg = document.createElement('div');
+        activeOutputMsg.className = 'conv-msg assistant';
+
+        const waveform = createWaveform('assistant');
+        const content = document.createElement('div');
+        content.className = 'msg-content';
+
+        const label = document.createElement('div');
+        label.className = 'msg-label';
+        label.textContent = 'CLAUDE OUTPUT';
+
+        const textEl = document.createElement('span');
+        textEl.className = 'msg-text';
+
+        content.appendChild(label);
+        content.appendChild(textEl);
+        activeOutputMsg.appendChild(waveform);
+        activeOutputMsg.appendChild(content);
+        conversationLog.appendChild(activeOutputMsg);
+
+        while (conversationLog.children.length > MAX_MESSAGES) {
+          conversationLog.removeChild(conversationLog.firstChild);
+        }
+      }
+
+      // 파형 애니메이션 시작 (TTS 재생 중)
+      const waveformCanvas = activeOutputMsg.querySelector('.msg-waveform');
+      if (waveformCanvas) {
+        animateWaveformCanvas(waveformCanvas, '#00ff88');
+      }
+
+      const textEl = activeOutputMsg.querySelector('.msg-text');
+
+      // 커서 추가
+      const cursor = document.createElement('span');
+      cursor.className = 'msg-cursor';
+      activeOutputMsg.appendChild(cursor);
+      activeCursorEl = cursor;
+
+      // 실제 TTS duration에 맞춰 타이핑
+      const totalChars = text.length;
+      const intervalMs = Math.max(20, (duration * 1000) / totalChars);
+      let idx = 0;
+
+      activeTypingEl = textEl;
+      textEl.dataset.remaining = text;
+
+      activeTypingTimer = setInterval(() => {
+        if (idx < totalChars) {
+          textEl.textContent += text[idx];
+          textEl.dataset.remaining = text.substring(idx + 1);
+          idx++;
+          conversationLog.scrollTop = conversationLog.scrollHeight;
+        } else {
+          clearInterval(activeTypingTimer);
+          activeTypingTimer = null;
+          textEl.dataset.remaining = '';
+          if (activeCursorEl) { activeCursorEl.remove(); activeCursorEl = null; }
+        }
+      }, intervalMs);
+
+      conversationLog.scrollTop = conversationLog.scrollHeight;
+    }
+
+    // ============================================================
+    //  WEBSOCKET
+    // ============================================================
+    function connect() {
+      if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return;
+
+      ws = new WebSocket(WS_URL);
+
+      ws.onopen = () => {
+        wsDot.classList.add('connected');
+        wsLabel.textContent = 'CONNECTED';
+        $('dpSys').textContent = 'SYS.OK';
+        if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      };
+
+      ws.onclose = () => {
+        wsDot.classList.remove('connected');
+        wsLabel.textContent = 'DISCONNECTED';
+        $('dpSys').textContent = 'SYS.OFFLINE';
+        scheduleReconnect();
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          handleMessage(msg);
+        } catch (e) {
+          // ignore malformed messages
+        }
+      };
+    }
+
+    function scheduleReconnect() {
+      if (reconnectTimer) return;
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connect();
+      }, RECONNECT_INTERVAL);
+    }
+
+    function handleMessage(msg) {
+      switch (msg.type) {
+        case 'state': {
+          const newState = msg.value || 'idle';
+          if (THEMES[newState] && newState !== currentState) {
+            currentState = newState;
+            applyTheme(currentState);
+
+            if (currentState === 'recording') {
+              // 녹음 시작 → LISTENING 메시지 표시
+              showListening();
+            } else if (currentState === 'processing') {
+              // 녹음 끝 → LISTENING 파형 정지 (텍스트는 transcript에서 교체)
+              if (listeningWaveform && activeWaveformCanvas === listeningWaveform) {
+                stopWaveformAnim();
+              }
+            } else if (currentState === 'idle') {
+              targetAudioLevel = 0;
+              stopActiveTyping();
+              stopWaveformAnim();
+              activeOutputMsg = null;
+            }
+          }
+          break;
+        }
+
+        case 'audio_level': {
+          const v = parseFloat(msg.value);
+          if (!isNaN(v)) {
+            targetAudioLevel = Math.max(0, Math.min(1, v));
+            // 녹음 중이면 LISTENING 파형도 업데이트
+            if (currentState === 'recording') {
+              updateListeningWaveform(v);
+            }
+          }
+          break;
+        }
+
+        case 'transcript':
+        case 'input': {
+          if (msg.value) {
+            stopActiveTyping();
+            activeOutputMsg = null;
+            // LISTENING 메시지가 있으면 텍스트로 교체, 없으면 새로 생성
+            if (listeningMsg) {
+              replaceListeningWithText(msg.value);
+            } else {
+              addMessage('user', msg.value);
+            }
+            currentState = 'thinking';
+            applyTheme('thinking');
+          }
+          break;
+        }
+
+        case 'output': {
+          // 레거시: 전체 텍스트 한번에 (output_chunk를 안 쓰는 경우)
+          if (msg.value) {
+            stopActiveTyping();
+            activeOutputMsg = null;
+            addMessage('assistant', msg.value);
+          }
+          break;
+        }
+
+        case 'output_chunk': {
+          // 청크 단위 TTS 싱크 타이핑: "duration|text" 형식
+          if (msg.value) {
+            const sepIdx = msg.value.indexOf('|');
+            if (sepIdx > 0) {
+              const duration = parseFloat(msg.value.substring(0, sepIdx));
+              const text = msg.value.substring(sepIdx + 1);
+              if (text && !isNaN(duration)) {
+                appendChunk(text, duration);
+              }
+            }
+          }
+          break;
+        }
+
+        case 'browser_frame': {
+          // Chrome CDP 스크린샷 스트리밍
+          if (msg.value) {
+            const feed = $('browserFeed');
+            const img = $('feedImage');
+            feed.classList.add('active');
+            img.src = 'data:image/jpeg;base64,' + msg.value;
+          }
+          break;
+        }
+
+        case 'browser_stop': {
+          // 브라우저 피드 종료
+          $('browserFeed').classList.remove('active');
+          break;
+        }
+
+        case 'config': {
+          // Optional: update panel values from server config
+          if (msg.model) $('valModel').textContent = msg.model.toUpperCase();
+          if (msg.language) $('valLang').textContent = msg.language.toUpperCase();
+          if (msg.mode) $('valMode').textContent = msg.mode.toUpperCase();
+          if (msg.history_count != null) $('valHistory').textContent = msg.history_count + ' ITEMS';
+          break;
+        }
+
+        case 'latency': {
+          if (msg.value != null) $('dpLatency').textContent = `LATENCY ${Math.round(msg.value)}ms`;
+          break;
+        }
+
+        default:
+          break;
+      }
+    }
+
+    // ============================================================
+    //  INIT
+    // ============================================================
+    applyTheme('idle');
+    connect();
+  </script>
+</body>
+</html>

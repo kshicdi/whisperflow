@@ -8,6 +8,7 @@ from pathlib import Path
 from faster_whisper import WhisperModel
 
 from .config import config
+from .history_manager import history_manager
 
 
 class Transcriber:
@@ -67,6 +68,15 @@ class Transcriber:
             # 문장 끝에서 줄바꿈 추가 (. ! ?)
             import re
             text = re.sub(r'([.!?])\s*', r'\1\n', text).strip()
+
+            # 히스토리 저장 (임시 파일 삭제 전에)
+            if text:
+                history_manager.save(
+                    audio_path=audio_path,
+                    text=text,
+                    language=lang,
+                    model=config.model_size
+                )
 
             if self.on_transcription_done:
                 self.on_transcription_done(text)

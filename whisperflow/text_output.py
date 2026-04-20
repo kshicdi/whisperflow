@@ -63,12 +63,21 @@ class TextOutput:
             # 2. 이전 앱으로 전환 후 붙여넣기
             time.sleep(0.3)
 
-            # 간단하게: 키보드 이벤트로 Cmd+V
-            script = '''
-            tell application "System Events"
-                key code 9 using command down
-            end tell
-            '''
+            # 키보드 이벤트로 Cmd+V (+ 자동 엔터)
+            if config.auto_enter:
+                script = '''
+                tell application "System Events"
+                    key code 9 using command down
+                    delay 0.3
+                    key code 36
+                end tell
+                '''
+            else:
+                script = '''
+                tell application "System Events"
+                    key code 9 using command down
+                end tell
+                '''
 
             result = subprocess.run(
                 ["osascript", "-e", script],

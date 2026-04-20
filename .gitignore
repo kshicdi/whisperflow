@@ -27,3 +27,13 @@ dist/
 
 # Config (개인 설정)
 # ~/.config/whisperflow/config.json
+
+# Playwright MCP
+.playwright-mcp/
+
+# Screenshots (mockup/test)
+*.png
+
+# Windows build
+whisperflow_windows.zip
+whisperflow_windows/

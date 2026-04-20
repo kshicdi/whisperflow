@@ -15,6 +15,13 @@ class Config:
     hotkey: str = "cmd+shift+r"  # 녹음 단축키
     output_mode: Literal["clipboard", "type"] = "type"
     sample_rate: int = 16000  # Whisper 권장 샘플레이트
+    option_hold_enabled: bool = False  # Option 키 길게 누르기로 녹음
+    history_enabled: bool = True  # 히스토리 저장 활성화
+    tts_hotkey: str = "cmd+shift+s"  # TTS 단축키
+    tts_rate: int = 200  # TTS 읽기 속도 (words per minute)
+    tts_enabled: bool = True  # TTS 기능 활성화
+    auto_enter: bool = False  # 붙여넣기 후 자동 엔터
+    qwen_tts_speed: float = 1.4  # Qwen TTS 발음 속도
 
     @classmethod
     def get_config_path(cls) -> Path:
