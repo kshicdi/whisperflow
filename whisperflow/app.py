@@ -275,6 +275,7 @@ class WhisperFlowApp(rumps.App):
             self.auto_enter_item,
             None,
             rumps.MenuItem("JARVIS UI", callback=self._open_jarvis_ui),
+            self._create_jarvis_roleplay_item(),
             None,
         ]
 
@@ -442,6 +443,30 @@ class WhisperFlowApp(rumps.App):
     def _open_jarvis_ui(self, sender) -> None:
         """JARVIS UI를 기본 브라우저에서 열기"""
         webbrowser.open("http://localhost:8767")
+
+    JARVIS_ROLEPLAY_FILE = os.path.expanduser("~/.whisperflow_jarvis_roleplay")
+
+    def _create_jarvis_roleplay_item(self):
+        """자비스 역할극 체크박스 메뉴 아이템 생성"""
+        item = rumps.MenuItem("자비스 역할극", callback=self._toggle_jarvis_roleplay)
+        item.state = os.path.exists(self.JARVIS_ROLEPLAY_FILE)
+        return item
+
+    def _toggle_jarvis_roleplay(self, sender) -> None:
+        """자비스 역할극 모드 토글"""
+        if sender.state:
+            # OFF
+            try:
+                os.remove(self.JARVIS_ROLEPLAY_FILE)
+            except FileNotFoundError:
+                pass
+            sender.state = False
+            log("[자비스] 역할극 모드 OFF")
+        else:
+            # ON
+            Path(self.JARVIS_ROLEPLAY_FILE).touch()
+            sender.state = True
+            log("[자비스] 역할극 모드 ON")
 
     def _on_recording_start(self) -> None:
         """녹음 시작 콜백"""
