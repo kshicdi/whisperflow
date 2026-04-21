@@ -5,6 +5,7 @@ import sys
 import os
 import datetime
 import threading
+import pyperclip
 from pathlib import Path
 
 try:
@@ -467,6 +468,8 @@ class WhisperFlowApp(rumps.App):
                 return
             self.recorder.stop_recording()
 
+    _remote_recording = False  # 원격 녹음 여부 플래그
+
     def _handle_remote_record(self, data: dict) -> None:
         """iPad 등 원격 클라이언트의 녹음 명령 처리 (WS 스레드에서 호출됨)"""
         action = data.get("action", "toggle")
@@ -477,7 +480,7 @@ class WhisperFlowApp(rumps.App):
                 if self.recorder.is_recording:
                     log("[원격] 이미 녹음 중 - 무시")
                     return
-                TextOutput.save_active_app()
+                self._remote_recording = True
                 self.recorder.start_recording()
             elif action == "stop":
                 if not self.recorder.is_recording:
@@ -489,7 +492,7 @@ class WhisperFlowApp(rumps.App):
                 if self.recorder.is_recording:
                     self.recorder.stop_recording()
                 else:
-                    TextOutput.save_active_app()
+                    self._remote_recording = True
                     self.recorder.start_recording()
 
     def _menu_toggle_recording(self, sender) -> None:
@@ -667,7 +670,28 @@ class WhisperFlowApp(rumps.App):
             self._ws_broadcast("broadcast_state", "idle")
 
         if text:
-            success = self.text_output.output(text)
+            if self._remote_recording:
+                # 원격 녹음: pbcopy로 클립보드 복사 후 현재 앱에 붙여넣기
+                self._remote_recording = False
+                import subprocess as _sp
+                import time
+                # pbcopy로 확실하게 클립보드 복사
+                proc = _sp.Popen(["pbcopy"], stdin=_sp.PIPE)
+                proc.communicate(text.encode("utf-8"))
+                log(f"[출력] pbcopy 완료: {text[:50]}")
+                time.sleep(0.3)
+                # 현재 활성 앱에 Cmd+V + Enter
+                _sp.run(["osascript", "-e", '''
+                    tell application "System Events"
+                        key code 9 using command down
+                        delay 0.3
+                        key code 36
+                    end tell
+                '''], capture_output=True)
+                success = True
+                log(f"[출력] 원격 → 현재 앱 붙여넣기 완료")
+            else:
+                success = self.text_output.output(text)
             log(f"[출력] 클립보드 복사: {success}")
             if success:
                 # 알림 표시
