@@ -262,32 +262,21 @@ class WhisperFlowApp(rumps.App):
         self.tts_menu.add(self.qwen_speed_menu)
         self.tts_menu.add(None)  # 구분선
 
-        # 드라이브 모드 (전체 읽기)
+        # 드라이브 모드 (전체 읽기) — 최상위 메뉴에 배치
         self.auto_tts_item = rumps.MenuItem(
-            "드라이브 모드 (전체 읽기)",
+            "🚗 드라이브 모드",
             callback=self._toggle_auto_tts
         )
         toggle_file = Path.home() / ".whisperflow_auto_tts"
         self.auto_tts_item.state = 1 if toggle_file.exists() else 0
-        self.tts_menu.add(self.auto_tts_item)
 
-        # 도서관 모드 (앞부분만 빠르게)
+        # 도서관 모드 (앞부분만 빠르게) — 최상위 메뉴에 배치
         self.library_tts_item = rumps.MenuItem(
-            "도서관 모드 (앞부분만)",
+            "📚 도서관 모드",
             callback=self._toggle_library_tts
         )
         library_file = Path.home() / ".whisperflow_library_tts"
         self.library_tts_item.state = 1 if library_file.exists() else 0
-        self.tts_menu.add(self.library_tts_item)
-
-        # 유튜브 모드 (자비스 전체 읽기)
-        self.youtube_tts_item = rumps.MenuItem(
-            "유튜브 모드 (자비스 전체)",
-            callback=self._toggle_youtube_tts
-        )
-        youtube_file = Path.home() / ".whisperflow_youtube_tts"
-        self.youtube_tts_item.state = 1 if youtube_file.exists() else 0
-        self.tts_menu.add(self.youtube_tts_item)
 
         self.tts_menu.add(None)  # 구분선
         self.tts_menu.add(rumps.MenuItem(
@@ -305,23 +294,23 @@ class WhisperFlowApp(rumps.App):
         )
         self.auto_enter_item.state = 1 if config.auto_enter else 0
 
-        # 카메라 피드 토글 메뉴 아이템
-        self.camera_feed_item = rumps.MenuItem(
-            "📷 카메라",
-            callback=self._toggle_camera_feed
-        )
-        self.camera_feed_item.state = 0
-
         # JARVIS 촬영 모드 토글 메뉴 아이템
         self.jarvis_shoot_item = rumps.MenuItem(
             "🎬 JARVIS 촬영 모드",
             callback=self._toggle_jarvis_shoot_mode
         )
-        self.jarvis_shoot_item.state = 0
+        # 유튜브 TTS + 자비스 역할극이 모두 활성화되어 있으면 촬영 모드 ON 상태
+        youtube_file = Path.home() / ".whisperflow_youtube_tts"
+        roleplay_file = Path(self.JARVIS_ROLEPLAY_FILE)
+        self.jarvis_shoot_item.state = 1 if (youtube_file.exists() and roleplay_file.exists()) else 0
 
         self.menu = [
             rumps.MenuItem("녹음 시작/중지", callback=self._menu_toggle_recording),
             None,  # 구분선
+            self.auto_tts_item,
+            self.library_tts_item,
+            self.jarvis_shoot_item,
+            None,
             self.model_menu,
             self.lang_menu,
             self.hotkey_menu,
@@ -330,9 +319,6 @@ class WhisperFlowApp(rumps.App):
             self.auto_enter_item,
             None,
             rumps.MenuItem("JARVIS UI", callback=self._open_jarvis_ui),
-            self.jarvis_shoot_item,
-            self._create_jarvis_roleplay_item(),
-            self.camera_feed_item,
             None,
         ]
 
@@ -530,111 +516,62 @@ class WhisperFlowApp(rumps.App):
 
     JARVIS_ROLEPLAY_FILE = os.path.expanduser("~/.whisperflow_jarvis_roleplay")
 
-    def _create_jarvis_roleplay_item(self):
-        """자비스 역할극 체크박스 메뉴 아이템 생성"""
-        item = rumps.MenuItem("자비스 역할극", callback=self._toggle_jarvis_roleplay)
-        item.state = os.path.exists(self.JARVIS_ROLEPLAY_FILE)
-        return item
+    # === 모드 비활성화 헬퍼 (상호 배타 처리용) ===
 
-    def _toggle_jarvis_roleplay(self, sender) -> None:
-        """자비스 역할극 모드 토글"""
-        if sender.state:
-            # OFF
-            try:
-                os.remove(self.JARVIS_ROLEPLAY_FILE)
-            except FileNotFoundError:
-                pass
-            sender.state = False
-            log("[자비스] 역할극 모드 OFF")
-        else:
-            # ON
-            Path(self.JARVIS_ROLEPLAY_FILE).touch()
-            sender.state = True
-            log("[자비스] 역할극 모드 ON")
+    def _deactivate_drive_mode(self) -> None:
+        """드라이브 모드 비활성화 (파일 삭제 + 메뉴 state 동기화)"""
+        (Path.home() / ".whisperflow_auto_tts").unlink(missing_ok=True)
+        self.auto_tts_item.state = 0
 
-    def _toggle_camera_feed(self, sender) -> None:
-        """카메라 피드 ON/OFF 토글"""
-        if sender.state:
-            # OFF: 카메라 종료
-            sender.state = False
-            if self.camera_feed is not None:
-                self.camera_feed.stop()
-                self.camera_feed = None
-            # JARVIS UI에 피드 영역 숨기기 요청
-            self._ws_broadcast("broadcast_raw", '{"type":"browser_stop"}')
-            log("[카메라] 피드 종료")
-        else:
-            # ON: 카메라 시작
-            if CameraFeed is None:
-                TextOutput.show_notification("WhisperFlow", "camera_feed 모듈을 불러올 수 없습니다")
-                log("[카메라] CameraFeed 모듈 없음")
-                return
-            sender.state = True
-            self.camera_feed = CameraFeed(camera_index=0)
-            self.camera_feed.start()
-            log("[카메라] 피드 시작 (camera_index=0)")
+    def _deactivate_library_mode(self) -> None:
+        """도서관 모드 비활성화 (파일 삭제 + 메뉴 state 동기화)"""
+        (Path.home() / ".whisperflow_library_tts").unlink(missing_ok=True)
+        self.library_tts_item.state = 0
+
+    def _deactivate_jarvis_shoot_mode(self) -> None:
+        """JARVIS 촬영 모드 비활성화 (유튜브 TTS + 역할극 + 카메라 종료)"""
+        (Path.home() / ".whisperflow_youtube_tts").unlink(missing_ok=True)
+        Path(self.JARVIS_ROLEPLAY_FILE).unlink(missing_ok=True)
+        self.jarvis_shoot_item.state = 0
+
+        # 카메라 피드 종료
+        if self.camera_feed is not None:
+            self.camera_feed.stop()
+            self.camera_feed = None
+        self._ws_broadcast("broadcast_raw", '{"type":"browser_stop"}')
 
     def _toggle_jarvis_shoot_mode(self, sender) -> None:
-        """JARVIS 촬영 모드 ON/OFF 토글 — 유튜브 모드 + 자비스 역할극 + 카메라를 한 번에"""
-        youtube_file = Path.home() / ".whisperflow_youtube_tts"
-        roleplay_file = Path(self.JARVIS_ROLEPLAY_FILE)
-        auto_tts_file = Path.home() / ".whisperflow_auto_tts"
-        library_tts_file = Path.home() / ".whisperflow_library_tts"
-
+        """JARVIS 촬영 모드 ON/OFF 토글 — 유튜브 TTS + 자비스 역할극 + 카메라를 한 번에"""
         if sender.state:
             # --- OFF ---
-            sender.state = False
-
-            # 유튜브 모드 OFF
-            youtube_file.unlink(missing_ok=True)
-            self.youtube_tts_item.state = 0
-
-            # 자비스 역할극 OFF
-            roleplay_file.unlink(missing_ok=True)
-            try:
-                self.menu["자비스 역할극"].state = 0
-            except Exception:
-                pass
-
-            # 카메라 피드 종료
-            if self.camera_feed is not None:
-                self.camera_feed.stop()
-                self.camera_feed = None
-            self.camera_feed_item.state = 0
-            self._ws_broadcast("broadcast_raw", '{"type":"browser_stop"}')
-
+            self._deactivate_jarvis_shoot_mode()
             log("[촬영] JARVIS 촬영 모드 OFF")
             TextOutput.show_notification("WhisperFlow", "JARVIS 촬영 모드 OFF")
         else:
             # --- ON ---
             sender.state = True
 
-            # 다른 TTS 모드 끄기
-            auto_tts_file.unlink(missing_ok=True)
-            library_tts_file.unlink(missing_ok=True)
-            self.auto_tts_item.state = 0
-            self.library_tts_item.state = 0
+            # 다른 모드 OFF
+            self._deactivate_drive_mode()
+            self._deactivate_library_mode()
 
-            # 유튜브 모드 ON
-            youtube_file.touch()
-            self.youtube_tts_item.state = 1
+            # 유튜브 TTS ON
+            (Path.home() / ".whisperflow_youtube_tts").touch()
 
             # 자비스 역할극 ON
-            roleplay_file.touch()
-            try:
-                self.menu["자비스 역할극"].state = 1
-            except Exception:
-                pass
+            Path(self.JARVIS_ROLEPLAY_FILE).touch()
 
-            # 카메라 피드 시작
+            # 카메라 피드 시작 (앱 내부 인스턴스로 관리)
             if CameraFeed is None:
                 TextOutput.show_notification("WhisperFlow", "camera_feed 모듈을 불러올 수 없습니다")
                 log("[촬영] CameraFeed 모듈 없음")
             else:
-                if self.camera_feed is None:
-                    self.camera_feed = CameraFeed(camera_index=0)
-                    self.camera_feed.start()
-                self.camera_feed_item.state = 1
+                if self.camera_feed is not None:
+                    # 이미 실행 중이면 종료 후 재시작
+                    self.camera_feed.stop()
+                self.camera_feed = CameraFeed(camera_index=0)
+                self.camera_feed.start()
+                log("[촬영] 카메라 피드 시작 (camera_index=0)")
 
             log("[촬영] JARVIS 촬영 모드 ON")
             TextOutput.show_notification("WhisperFlow", "JARVIS 촬영 모드 ON")
@@ -778,17 +715,14 @@ class WhisperFlowApp(rumps.App):
     def _toggle_auto_tts(self, sender) -> None:
         """드라이브 모드 토글"""
         toggle_file = Path.home() / ".whisperflow_auto_tts"
-        library_file = Path.home() / ".whisperflow_library_tts"
         sender.state = 0 if sender.state else 1
         enabled = bool(sender.state)
 
         if enabled:
             toggle_file.touch()
-            library_file.unlink(missing_ok=True)
-            youtube_file = Path.home() / ".whisperflow_youtube_tts"
-            youtube_file.unlink(missing_ok=True)
-            self.library_tts_item.state = 0
-            self.youtube_tts_item.state = 0
+            # 다른 모드 OFF
+            self._deactivate_library_mode()
+            self._deactivate_jarvis_shoot_mode()
             log("[TTS] 드라이브 모드 ON")
             TextOutput.show_notification("WhisperFlow", "드라이브 모드 ON")
         else:
@@ -799,42 +733,19 @@ class WhisperFlowApp(rumps.App):
     def _toggle_library_tts(self, sender) -> None:
         """도서관 모드 토글"""
         library_file = Path.home() / ".whisperflow_library_tts"
-        toggle_file = Path.home() / ".whisperflow_auto_tts"
-        youtube_file = Path.home() / ".whisperflow_youtube_tts"
         sender.state = 0 if sender.state else 1
         enabled = bool(sender.state)
 
         if enabled:
             library_file.touch()
-            toggle_file.unlink(missing_ok=True)
-            youtube_file.unlink(missing_ok=True)
-            self.auto_tts_item.state = 0
-            self.youtube_tts_item.state = 0
+            # 다른 모드 OFF
+            self._deactivate_drive_mode()
+            self._deactivate_jarvis_shoot_mode()
             log("[TTS] 도서관 모드 ON")
             TextOutput.show_notification("WhisperFlow", "도서관 모드 ON")
         else:
             library_file.unlink(missing_ok=True)
             log("[TTS] 도서관 모드 OFF")
-
-    def _toggle_youtube_tts(self, sender) -> None:
-        """유튜브 모드 토글"""
-        youtube_file = Path.home() / ".whisperflow_youtube_tts"
-        toggle_file = Path.home() / ".whisperflow_auto_tts"
-        library_file = Path.home() / ".whisperflow_library_tts"
-        sender.state = 0 if sender.state else 1
-        enabled = bool(sender.state)
-
-        if enabled:
-            youtube_file.touch()
-            toggle_file.unlink(missing_ok=True)
-            library_file.unlink(missing_ok=True)
-            self.auto_tts_item.state = 0
-            self.library_tts_item.state = 0
-            log("[TTS] 유튜브 모드 ON")
-            TextOutput.show_notification("WhisperFlow", "유튜브 모드 ON (자비스 전체)")
-        else:
-            youtube_file.unlink(missing_ok=True)
-            log("[TTS] 유튜브 모드 OFF")
             TextOutput.show_notification("WhisperFlow", "도서관 모드 OFF")
 
     def _stop_tts(self, sender) -> None:
