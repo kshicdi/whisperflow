@@ -311,6 +311,13 @@ class WhisperFlowApp(rumps.App):
         )
         self.camera_feed_item.state = 0
 
+        # JARVIS 촬영 모드 토글 메뉴 아이템
+        self.jarvis_shoot_item = rumps.MenuItem(
+            "🎬 JARVIS 촬영 모드",
+            callback=self._toggle_jarvis_shoot_mode
+        )
+        self.jarvis_shoot_item.state = 0
+
         self.menu = [
             rumps.MenuItem("녹음 시작/중지", callback=self._menu_toggle_recording),
             None,  # 구분선
@@ -322,6 +329,7 @@ class WhisperFlowApp(rumps.App):
             self.auto_enter_item,
             None,
             rumps.MenuItem("JARVIS UI", callback=self._open_jarvis_ui),
+            self.jarvis_shoot_item,
             self._create_jarvis_roleplay_item(),
             self.camera_feed_item,
             None,
@@ -562,6 +570,71 @@ class WhisperFlowApp(rumps.App):
             self.camera_feed = CameraFeed(camera_index=0)
             self.camera_feed.start()
             log("[카메라] 피드 시작 (camera_index=0)")
+
+    def _toggle_jarvis_shoot_mode(self, sender) -> None:
+        """JARVIS 촬영 모드 ON/OFF 토글 — 유튜브 모드 + 자비스 역할극 + 카메라를 한 번에"""
+        youtube_file = Path.home() / ".whisperflow_youtube_tts"
+        roleplay_file = Path(self.JARVIS_ROLEPLAY_FILE)
+        auto_tts_file = Path.home() / ".whisperflow_auto_tts"
+        library_tts_file = Path.home() / ".whisperflow_library_tts"
+
+        if sender.state:
+            # --- OFF ---
+            sender.state = False
+
+            # 유튜브 모드 OFF
+            youtube_file.unlink(missing_ok=True)
+            self.youtube_tts_item.state = 0
+
+            # 자비스 역할극 OFF
+            roleplay_file.unlink(missing_ok=True)
+            try:
+                self.menu["자비스 역할극"].state = 0
+            except Exception:
+                pass
+
+            # 카메라 피드 종료
+            if self.camera_feed is not None:
+                self.camera_feed.stop()
+                self.camera_feed = None
+            self.camera_feed_item.state = 0
+            self._ws_broadcast("broadcast_raw", '{"type":"browser_stop"}')
+
+            log("[촬영] JARVIS 촬영 모드 OFF")
+            TextOutput.show_notification("WhisperFlow", "JARVIS 촬영 모드 OFF")
+        else:
+            # --- ON ---
+            sender.state = True
+
+            # 다른 TTS 모드 끄기
+            auto_tts_file.unlink(missing_ok=True)
+            library_tts_file.unlink(missing_ok=True)
+            self.auto_tts_item.state = 0
+            self.library_tts_item.state = 0
+
+            # 유튜브 모드 ON
+            youtube_file.touch()
+            self.youtube_tts_item.state = 1
+
+            # 자비스 역할극 ON
+            roleplay_file.touch()
+            try:
+                self.menu["자비스 역할극"].state = 1
+            except Exception:
+                pass
+
+            # 카메라 피드 시작
+            if CameraFeed is None:
+                TextOutput.show_notification("WhisperFlow", "camera_feed 모듈을 불러올 수 없습니다")
+                log("[촬영] CameraFeed 모듈 없음")
+            else:
+                if self.camera_feed is None:
+                    self.camera_feed = CameraFeed(camera_index=0)
+                    self.camera_feed.start()
+                self.camera_feed_item.state = 1
+
+            log("[촬영] JARVIS 촬영 모드 ON")
+            TextOutput.show_notification("WhisperFlow", "JARVIS 촬영 모드 ON")
 
     def _on_recording_start(self) -> None:
         """녹음 시작 콜백"""
