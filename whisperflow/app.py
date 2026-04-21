@@ -91,6 +91,7 @@ class WhisperFlowApp(rumps.App):
         try:
             if WhisperFlowWSServer is not None:
                 self.ws_server = WhisperFlowWSServer()
+                self.ws_server._on_remote_record = self._handle_remote_record
                 self.ws_server.start()
             else:
                 self.ws_server = None
@@ -457,6 +458,31 @@ class WhisperFlowApp(rumps.App):
                 log("[앱] _on_hotkey_end 무시 - 이미 녹음 중 아님")
                 return
             self.recorder.stop_recording()
+
+    def _handle_remote_record(self, data: dict) -> None:
+        """iPad 등 원격 클라이언트의 녹음 명령 처리 (WS 스레드에서 호출됨)"""
+        action = data.get("action", "toggle")
+        log(f"[원격] remote_record 수신: action={action}")
+
+        with self._recording_lock:
+            if action == "start":
+                if self.recorder.is_recording:
+                    log("[원격] 이미 녹음 중 - 무시")
+                    return
+                TextOutput.save_active_app()
+                self.recorder.start_recording()
+            elif action == "stop":
+                if not self.recorder.is_recording:
+                    log("[원격] 녹음 중 아님 - 무시")
+                    return
+                self.recorder.stop_recording()
+            else:
+                # toggle (기본)
+                if self.recorder.is_recording:
+                    self.recorder.stop_recording()
+                else:
+                    TextOutput.save_active_app()
+                    self.recorder.start_recording()
 
     def _menu_toggle_recording(self, sender) -> None:
         """메뉴에서 녹음 토글"""

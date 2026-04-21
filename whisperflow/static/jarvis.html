@@ -873,6 +873,52 @@
     z-index: 1;
   }
 
+  /* === Mic Button === */
+  .mic-button {
+    position: absolute;
+    bottom: 280px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 2px solid rgba(0, 212, 255, 0.5);
+    background: rgba(0, 212, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 20;
+    font-family: 'Orbitron', sans-serif;
+    transition: border-color 0.3s ease, background 0.3s ease, box-shadow 0.3s ease;
+    box-shadow: 0 0 12px rgba(0, 212, 255, 0.2), inset 0 0 12px rgba(0, 212, 255, 0.05);
+  }
+
+  .mic-button:hover {
+    border-color: rgba(0, 212, 255, 0.9);
+    background: rgba(0, 212, 255, 0.18);
+    box-shadow: 0 0 20px rgba(0, 212, 255, 0.4), inset 0 0 16px rgba(0, 212, 255, 0.1);
+  }
+
+  .mic-button.recording {
+    border-color: rgba(255, 60, 60, 0.9);
+    background: rgba(255, 60, 60, 0.15);
+    box-shadow: 0 0 20px rgba(255, 60, 60, 0.5), inset 0 0 16px rgba(255, 60, 60, 0.1);
+    animation: mic-pulse 1.2s ease-in-out infinite;
+  }
+
+  .mic-icon {
+    font-size: 26px;
+    line-height: 1;
+    user-select: none;
+    pointer-events: none;
+  }
+
+  @keyframes mic-pulse {
+    0%, 100% { box-shadow: 0 0 20px rgba(255, 60, 60, 0.5), inset 0 0 16px rgba(255, 60, 60, 0.1); }
+    50% { box-shadow: 0 0 36px rgba(255, 60, 60, 0.8), inset 0 0 24px rgba(255, 60, 60, 0.2); }
+  }
+
   /* === Conversation Log === */
   .conversation-log {
     position: absolute;
@@ -1259,6 +1305,11 @@
       <div class="feed-scanlines"></div>
     </div>
 
+    <!-- Mic Button -->
+    <div class="mic-button" id="micButton">
+      <span class="mic-icon">🎙</span>
+    </div>
+
     <!-- Conversation Log -->
     <div class="conversation-log" id="conversationLog">
       <!-- Messages will be appended here dynamically -->
@@ -1554,6 +1605,7 @@
     const ringMid = $('ringMid');
     const ringInner = $('ringInner');
     const reactorCore = $('reactorCore');
+    const micButton = $('micButton');
 
     // ============================================================
     //  STATE
@@ -1656,6 +1708,15 @@
         if (state === 'idle') {
           valDuration.textContent = '00:00.0';
           valDuration.classList.remove('warning');
+        }
+      }
+
+      // Mic button state
+      if (micButton) {
+        if (state === 'recording') {
+          micButton.classList.add('recording');
+        } else {
+          micButton.classList.remove('recording');
         }
       }
     }
@@ -2450,6 +2511,17 @@
         vline.classList.remove('animate');
         text.classList.remove('animate');
       }, 1200);
+    }
+
+    // ============================================================
+    //  MIC BUTTON
+    // ============================================================
+    if (micButton) {
+      micButton.addEventListener('click', () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'remote_record', value: 'toggle' }));
+        }
+      });
     }
 
     // ============================================================

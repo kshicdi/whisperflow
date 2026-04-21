@@ -37,6 +37,8 @@ class WhisperFlowWSServer:
         self._thread: Optional[threading.Thread] = None
         self._server = None
         self._stop_event: Optional[asyncio.Event] = None
+        # 외부에서 등록하는 콜백 (app.py에서 remote_record 처리용)
+        self._on_remote_record = None
 
     # ------------------------------------------------------------------
     # HTTP static file handler (called via process_request hook)
@@ -122,9 +124,15 @@ class WhisperFlowWSServer:
                     data = json.loads(message)
                     msg_type = data.get("type", "")
                     # Forward input/output/state/transcript messages
-                    if msg_type in ("input", "output", "output_chunk", "state", "transcript", "audio_level", "browser_frame", "browser_stop", "code_action", "ui_action", "camera_frame", "face_recognized"):
+                    if msg_type in ("input", "output", "output_chunk", "state", "transcript", "audio_level", "browser_frame", "browser_stop", "code_action", "ui_action", "camera_frame", "face_recognized", "remote_record"):
                         if msg_type == "state":
                             self._current_state = data.get("value", "idle")
+                        # remote_record: 앱 콜백 호출 (녹음 토글)
+                        if msg_type == "remote_record" and self._on_remote_record:
+                            try:
+                                self._on_remote_record(data)
+                            except Exception as e:
+                                logger.error("remote_record callback error: %s", e)
                         # Broadcast to all clients except sender
                         for ws in list(self._clients):
                             if ws is not websocket:
@@ -171,7 +179,7 @@ class WhisperFlowWSServer:
         try:
             async with websockets.serve(
                 self._handler,
-                "localhost",
+                "0.0.0.0",
                 WS_PORT,
                 process_request=self._process_request,
                 max_size=10 * 1024 * 1024,  # 10MB for browser screenshots
