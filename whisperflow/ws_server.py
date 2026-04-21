@@ -225,3 +225,7 @@ class WhisperFlowWSServer:
         """Broadcast transcribed text"""
         message = json.dumps({"type": "transcript", "value": text})
         self._schedule(self._broadcast(message))
+
+    def broadcast_raw(self, message: str):
+        """Broadcast a raw JSON string as-is"""
+        self._schedule(self._broadcast(message))

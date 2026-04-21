@@ -42,6 +42,11 @@ try:
 except ImportError:
     WhisperFlowWSServer = None
 
+try:
+    from .camera_feed import CameraFeed
+except ImportError:
+    CameraFeed = None
+
 
 class WhisperFlowApp(rumps.App):
     """메뉴바 앱 클래스"""
@@ -114,6 +119,9 @@ class WhisperFlowApp(rumps.App):
         )
 
         self.text_output = TextOutput()
+
+        # 카메라 피드 인스턴스
+        self.camera_feed = None
 
         # 녹음 시작/종료를 atomic하게 보호하는 락
         # hotkey_manager는 여러 스레드에서 on_hold_start를 호출할 수 있으므로
@@ -295,6 +303,13 @@ class WhisperFlowApp(rumps.App):
         )
         self.auto_enter_item.state = 1 if config.auto_enter else 0
 
+        # 카메라 피드 토글 메뉴 아이템
+        self.camera_feed_item = rumps.MenuItem(
+            "📷 카메라",
+            callback=self._toggle_camera_feed
+        )
+        self.camera_feed_item.state = 0
+
         self.menu = [
             rumps.MenuItem("녹음 시작/중지", callback=self._menu_toggle_recording),
             None,  # 구분선
@@ -307,6 +322,7 @@ class WhisperFlowApp(rumps.App):
             None,
             rumps.MenuItem("JARVIS UI", callback=self._open_jarvis_ui),
             self._create_jarvis_roleplay_item(),
+            self.camera_feed_item,
             None,
         ]
 
@@ -498,6 +514,28 @@ class WhisperFlowApp(rumps.App):
             Path(self.JARVIS_ROLEPLAY_FILE).touch()
             sender.state = True
             log("[자비스] 역할극 모드 ON")
+
+    def _toggle_camera_feed(self, sender) -> None:
+        """카메라 피드 ON/OFF 토글"""
+        if sender.state:
+            # OFF: 카메라 종료
+            sender.state = False
+            if self.camera_feed is not None:
+                self.camera_feed.stop()
+                self.camera_feed = None
+            # JARVIS UI에 피드 영역 숨기기 요청
+            self._ws_broadcast("broadcast_raw", '{"type":"browser_stop"}')
+            log("[카메라] 피드 종료")
+        else:
+            # ON: 카메라 시작
+            if CameraFeed is None:
+                TextOutput.show_notification("WhisperFlow", "camera_feed 모듈을 불러올 수 없습니다")
+                log("[카메라] CameraFeed 모듈 없음")
+                return
+            sender.state = True
+            self.camera_feed = CameraFeed(camera_index=0)
+            self.camera_feed.start()
+            log("[카메라] 피드 시작 (camera_index=0)")
 
     def _on_recording_start(self) -> None:
         """녹음 시작 콜백"""

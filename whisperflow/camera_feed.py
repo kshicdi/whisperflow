@@ -27,6 +27,8 @@ class CameraFeed:
         self._loop = None
         self._current_frame_b64 = None  # 최신 프레임 (분석용)
         self._frame_lock = threading.Lock()
+        self._cap = None  # 카메라 객체 참조 (stop 시 해제용)
+        self._cap_lock = threading.Lock()
 
     def start(self):
         """Start capture loop in background thread."""
@@ -37,8 +39,13 @@ class CameraFeed:
         self._thread.start()
 
     def stop(self):
-        """Stop capture."""
+        """Stop capture and release camera."""
         self._running = False
+        # 카메라 즉시 해제
+        with self._cap_lock:
+            if self._cap is not None:
+                self._cap.release()
+                self._cap = None
         if self._loop and self._loop.is_running():
             self._loop.call_soon_threadsafe(self._loop.stop)
         if self._thread:
@@ -78,23 +85,22 @@ class CameraFeed:
 
         _standalone = _is_standalone()
 
-        # 카메라를 한 번 열고 유지
-        cap = None
-
         while self._running:
             # 카메라 열기
-            if cap is None or not cap.isOpened():
-                if _standalone:
-                    print(f"[CameraFeed] 카메라 {self.camera_index} 열기 시도...", flush=True)
-                cap = cv2.VideoCapture(self.camera_index)
-                if not cap.isOpened():
+            with self._cap_lock:
+                if self._cap is None or not self._cap.isOpened():
                     if _standalone:
-                        print(f"[CameraFeed] 카메라 {self.camera_index}를 열 수 없습니다. 재시도...", flush=True)
-                    cap = None
-                    await asyncio.sleep(3)
-                    continue
-                if _standalone:
-                    print(f"[CameraFeed] 카메라 {self.camera_index} 연결됨.", flush=True)
+                        print(f"[CameraFeed] 카메라 {self.camera_index} 열기 시도...", flush=True)
+                    self._cap = cv2.VideoCapture(self.camera_index)
+                    if not self._cap.isOpened():
+                        if _standalone:
+                            print(f"[CameraFeed] 카메라 {self.camera_index}를 열 수 없습니다. 재시도...", flush=True)
+                        self._cap = None
+                        await asyncio.sleep(3)
+                        continue
+                    if _standalone:
+                        print(f"[CameraFeed] 카메라 {self.camera_index} 연결됨.", flush=True)
+            cap = self._cap
 
             # JARVIS WebSocket 연결
             try:
@@ -114,8 +120,10 @@ class CameraFeed:
                             if _standalone:
                                 print("[CameraFeed] 프레임 읽기 실패. 카메라 재연결 시도...", flush=True)
                             # 카메라 닫고 재시도
-                            cap.release()
-                            cap = None
+                            with self._cap_lock:
+                                if self._cap is not None:
+                                    self._cap.release()
+                                    self._cap = None
                             break
 
                         # JPEG 인코딩 (quality 50)
@@ -145,10 +153,12 @@ class CameraFeed:
                 await asyncio.sleep(2)
 
         # 종료 시 카메라 해제
-        if cap is not None and cap.isOpened():
-            cap.release()
-            if _standalone:
-                print("[CameraFeed] 카메라 해제.", flush=True)
+        with self._cap_lock:
+            if self._cap is not None and self._cap.isOpened():
+                self._cap.release()
+                if _standalone:
+                    print("[CameraFeed] 카메라 해제.", flush=True)
+                self._cap = None
 
 
 _running_as_main = False
