@@ -679,6 +679,61 @@
     object-fit: cover;
   }
 
+  /* Face Recognition Overlay */
+  .face-recognition-overlay {
+    position: absolute;
+    top: 26px;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 12px;
+    z-index: 10;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+
+  .face-recognition-overlay.visible {
+    opacity: 1;
+  }
+
+  .face-recognition-overlay.fade-out {
+    opacity: 0;
+  }
+
+  .face-recognition-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    letter-spacing: 3px;
+    padding: 4px 14px;
+    border-radius: 2px;
+    text-transform: uppercase;
+    backdrop-filter: blur(4px);
+  }
+
+  .face-recognition-label.known {
+    color: #00ff88;
+    background: rgba(0, 255, 136, 0.1);
+    border: 1px solid rgba(0, 255, 136, 0.3);
+    box-shadow: 0 0 12px rgba(0, 255, 136, 0.15), inset 0 0 8px rgba(0, 255, 136, 0.05);
+  }
+
+  .face-recognition-label.unknown {
+    color: #ffcc00;
+    background: rgba(255, 204, 0, 0.1);
+    border: 1px solid rgba(255, 204, 0, 0.3);
+    box-shadow: 0 0 12px rgba(255, 204, 0, 0.15), inset 0 0 8px rgba(255, 204, 0, 0.05);
+  }
+
+  .face-confidence {
+    font-size: 7px;
+    letter-spacing: 2px;
+    margin-left: 8px;
+    opacity: 0.7;
+  }
+
   /* 스캔라인 오버레이 */
   .feed-scan {
     position: absolute;
@@ -1193,6 +1248,9 @@
       <div class="feed-header">
         <span class="feed-title">BROWSER FEED</span>
         <span class="feed-status"><span class="feed-dot"></span>LIVE</span>
+      </div>
+      <div class="face-recognition-overlay" id="faceRecognitionOverlay">
+        <span class="face-recognition-label" id="faceRecognitionLabel"></span>
       </div>
       <div class="feed-content">
         <img id="feedImage" src="" alt="">
@@ -2236,6 +2294,39 @@
             if (title) title.textContent = 'CAMERA FEED';
             feed.classList.add('active');
             img.src = 'data:image/jpeg;base64,' + msg.value;
+          }
+          break;
+        }
+
+        case 'face_recognized': {
+          // 인물 인식 결과 표시
+          if (msg.value) {
+            const parts = msg.value.split('|');
+            const name = parts[0] || 'unknown';
+            const confidence = parseFloat(parts[1] || '0');
+            const overlay = $('faceRecognitionOverlay');
+            const label = $('faceRecognitionLabel');
+            const isKnown = name.toLowerCase() !== 'unknown';
+
+            // 클래스 설정
+            label.className = 'face-recognition-label ' + (isKnown ? 'known' : 'unknown');
+            label.innerHTML = (isKnown ? name : 'UNKNOWN') +
+              '<span class="face-confidence">' + (confidence * 100).toFixed(0) + '%</span>';
+
+            // 표시
+            overlay.classList.remove('fade-out');
+            overlay.classList.add('visible');
+
+            // 기존 타이머 클리어
+            if (overlay._fadeTimer) clearTimeout(overlay._fadeTimer);
+
+            // 3초 후 페이드아웃
+            overlay._fadeTimer = setTimeout(() => {
+              overlay.classList.add('fade-out');
+              setTimeout(() => {
+                overlay.classList.remove('visible', 'fade-out');
+              }, 400);
+            }, 3000);
           }
           break;
         }
