@@ -2,21 +2,25 @@
 # Claude Code 도구 사용 시각화 훅
 # PreToolUse/PostToolUse 이벤트에서 호출됨
 
+export LANG=ko_KR.UTF-8
+export LC_ALL=ko_KR.UTF-8
+
 YOUTUBE_FILE="/Users/USER/.whisperflow_youtube_tts"
 [ -f "$YOUTUBE_FILE" ] || exit 0
 
-JARVIS_SEND="/Users/USER/Documents/아이디어프로그램/05.Whisperflow/whisperflow/jarvis_send.py"
-VENV_PYTHON="/Users/USER/Documents/아이디어프로그램/05.Whisperflow/venv/bin/python"
+WHISPERFLOW_DIR="/Users/USER/Documents/아이디어프로그램/05.Whisperflow"
+JARVIS_SEND="$WHISPERFLOW_DIR/whisperflow/jarvis_send.py"
+VENV_PYTHON="$WHISPERFLOW_DIR/venv/bin/python"
 [ -f "$JARVIS_SEND" ] || exit 0
 
-# stdin에서 JSON 읽기
+# stdin에서 JSON 읽어서 Python으로 파싱
 INPUT=$(cat)
 
-# tool_name과 tool_input 추출 (jq 없이 python으로)
-PARSED=$(/usr/bin/python3 -c "
+# tool_name과 tool_input 추출
+PARSED=$(echo "$INPUT" | /usr/bin/python3 -c "
 import json, sys
 try:
-    data = json.loads('''$INPUT''')
+    data = json.loads(sys.stdin.read())
     tool = data.get('tool_name', '')
     inp = data.get('tool_input', {})
 
