@@ -2563,6 +2563,11 @@
     // ============================================================
     if (micButton) {
       micButton.addEventListener('click', () => {
+        // iOS 오디오 세션 unlock — 터치 이벤트 안에서 재생해야 유효
+        try {
+          const silence = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=');
+          silence.play().catch(() => {});
+        } catch(e) {}
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'remote_record', value: 'toggle' }));
         }
