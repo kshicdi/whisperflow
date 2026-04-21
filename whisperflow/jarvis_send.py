@@ -27,13 +27,23 @@ async def send_message(msg_type: str, value: str):
 
 
 def main():
-    if len(sys.argv) < 3:
+    if len(sys.argv) < 2:
         print(f"Usage: {sys.argv[0]} <type> <value>")
-        print("  type: input | output | state | transcript")
+        print(f"       {sys.argv[0]} <type> --stdin  (read value from stdin)")
+        print("  type: input | output | state | transcript | tts_audio")
         sys.exit(1)
 
     msg_type = sys.argv[1]
-    value = " ".join(sys.argv[2:])
+
+    # --stdin 모드: 대용량 데이터(base64 오디오 등)를 stdin으로 받기
+    if len(sys.argv) >= 3 and sys.argv[2] == "--stdin":
+        value = sys.stdin.read()
+    elif len(sys.argv) >= 3:
+        value = " ".join(sys.argv[2:])
+    else:
+        print(f"Usage: {sys.argv[0]} <type> <value>")
+        sys.exit(1)
+
     asyncio.run(send_message(msg_type, value))
 
 

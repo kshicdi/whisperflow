@@ -124,7 +124,7 @@ class WhisperFlowWSServer:
                     data = json.loads(message)
                     msg_type = data.get("type", "")
                     # Forward input/output/state/transcript messages
-                    if msg_type in ("input", "output", "output_chunk", "state", "transcript", "audio_level", "browser_frame", "browser_stop", "code_action", "ui_action", "camera_frame", "face_recognized", "remote_record"):
+                    if msg_type in ("input", "output", "output_chunk", "state", "transcript", "audio_level", "browser_frame", "browser_stop", "code_action", "ui_action", "camera_frame", "face_recognized", "remote_record", "tts_audio"):
                         if msg_type == "state":
                             self._current_state = data.get("value", "idle")
                         # remote_record: 앱 콜백 호출 (녹음 토글)

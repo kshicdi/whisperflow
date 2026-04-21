@@ -876,9 +876,8 @@
   /* === Mic Button === */
   .mic-button {
     position: absolute;
-    bottom: 280px;
-    left: 50%;
-    transform: translateX(-50%);
+    bottom: 40px;
+    left: 40px;
     width: 60px;
     height: 60px;
     border-radius: 50%;
@@ -1584,7 +1583,7 @@
     // ============================================================
     //  CONFIGURATION
     // ============================================================
-    const WS_URL = 'ws://localhost:8767';
+    const WS_URL = 'ws://' + window.location.hostname + ':8767';
     const RECONNECT_INTERVAL = 2000;
     const BAR_COUNT = 72;
 
@@ -1619,6 +1618,31 @@
     let durationTimer = null;
     let frameCount = 0;
     let lastFpsTime = performance.now();
+    let ttsAudioQueue = [];
+    let ttsAudioPlaying = false;
+
+    function playNextTtsChunk() {
+      if (ttsAudioQueue.length === 0) {
+        ttsAudioPlaying = false;
+        return;
+      }
+      ttsAudioPlaying = true;
+      const url = ttsAudioQueue.shift();
+      const audio = new Audio(url);
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        playNextTtsChunk();
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(url);
+        playNextTtsChunk();
+      };
+      audio.play().catch(e => {
+        console.error('tts_audio play error:', e);
+        URL.revokeObjectURL(url);
+        playNextTtsChunk();
+      });
+    }
 
     // Waveform bar elements
     const bars = [];
@@ -2422,6 +2446,27 @@
 
         case 'latency': {
           if (msg.value != null) $('dpLatency').textContent = `LATENCY ${Math.round(msg.value)}ms`;
+          break;
+        }
+
+        case 'tts_audio': {
+          if (msg.value) {
+            try {
+              const binary = atob(msg.value);
+              const bytes = new Uint8Array(binary.length);
+              for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+              }
+              const blob = new Blob([bytes], { type: 'audio/wav' });
+              const url = URL.createObjectURL(blob);
+              ttsAudioQueue.push(url);
+              if (!ttsAudioPlaying) {
+                playNextTtsChunk();
+              }
+            } catch (e) {
+              console.error('tts_audio decode error:', e);
+            }
+          }
           break;
         }
 
