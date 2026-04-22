@@ -573,6 +573,8 @@ class WhisperFlowApp(rumps.App):
                 self.camera_feed.start()
                 log("[촬영] 카메라 피드 시작 (camera_index=0)")
 
+            # 시스템 부팅 시퀀스 전송
+            self._ws_broadcast("broadcast_raw", '{"type":"ui_action","value":"system_boot"}')
             log("[촬영] JARVIS 촬영 모드 ON")
             TextOutput.show_notification("WhisperFlow", "JARVIS 촬영 모드 ON")
 

@@ -918,6 +918,302 @@
     50% { box-shadow: 0 0 36px rgba(255, 60, 60, 0.8), inset 0 0 24px rgba(255, 60, 60, 0.2); }
   }
 
+  /* === SYSTEM BOOT SEQUENCE === */
+  .boot-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    background: #000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .boot-screen.active { display: flex; }
+  .boot-screen.fadeout { animation: boot-fadeout 0.5s ease-in forwards; }
+  @keyframes boot-fadeout { 0% { opacity: 1; } 100% { opacity: 0; } }
+
+  /* Shared: Reactor — enhanced with inner spinning rings */
+  .boot-reactor {
+    width: 80px; height: 80px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,212,255,0.4) 0%, rgba(0,212,255,0.05) 50%, transparent 70%);
+    box-shadow: 0 0 0 rgba(0,212,255,0); margin-bottom: 40px; opacity: 0;
+    position: relative; z-index: 10;
+  }
+  .boot-reactor.glow { animation: reactor-boot-enhanced 1.2s ease-out forwards; }
+  @keyframes reactor-boot-enhanced {
+    0% { opacity: 0; box-shadow: 0 0 0 rgba(0,212,255,0); transform: scale(0.2); }
+    20% { opacity: 1; box-shadow: 0 0 100px rgba(255,255,255,0.9), 0 0 200px rgba(0,212,255,0.5); transform: scale(1.5); }
+    40% { box-shadow: 0 0 80px rgba(0,212,255,0.8), 0 0 160px rgba(0,212,255,0.4); transform: scale(0.9); }
+    100% { opacity: 1; box-shadow: 0 0 50px rgba(0,212,255,0.5), 0 0 100px rgba(0,212,255,0.15); transform: scale(1); }
+  }
+
+  /* Inner spinning energy rings */
+  .boot-reactor-ring-inner {
+    position: absolute; border-radius: 50%; border: 1.5px solid rgba(0,212,255,0.6);
+    top: 50%; left: 50%; transform: translate(-50%,-50%); opacity: 0;
+  }
+  .boot-reactor-ring-inner.r1 { width: 50px; height: 50px; border-style: dashed; }
+  .boot-reactor-ring-inner.r2 { width: 70px; height: 70px; border-color: rgba(180,130,255,0.5); }
+  .boot-reactor-ring-inner.r1.spin { opacity: 1; animation: reactor-spin-cw 2s linear infinite; }
+  .boot-reactor-ring-inner.r2.spin { opacity: 1; animation: reactor-spin-ccw 3s linear infinite; }
+  @keyframes reactor-spin-cw { from { transform: translate(-50%,-50%) rotate(0deg); } to { transform: translate(-50%,-50%) rotate(360deg); } }
+  @keyframes reactor-spin-ccw { from { transform: translate(-50%,-50%) rotate(360deg); } to { transform: translate(-50%,-50%) rotate(0deg); } }
+
+  /* Energy beams radiating outward */
+  .boot-energy-beams {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    width: 400px; height: 400px; pointer-events: none; opacity: 0; z-index: 9;
+  }
+  .boot-energy-beams.fire { animation: beams-fire 0.8s ease-out forwards; }
+  @keyframes beams-fire { 0% { opacity: 1; transform: translate(-50%,-50%) scale(0.1); } 100% { opacity: 0; transform: translate(-50%,-50%) scale(1); } }
+  .boot-beam {
+    position: absolute; top: 50%; left: 50%; width: 200px; height: 1px;
+    transform-origin: 0 50%;
+    background: linear-gradient(90deg, rgba(0,212,255,0.8), rgba(180,130,255,0.3), transparent);
+  }
+  .boot-beam:nth-child(1) { transform: rotate(0deg); }
+  .boot-beam:nth-child(2) { transform: rotate(45deg); }
+  .boot-beam:nth-child(3) { transform: rotate(90deg); }
+  .boot-beam:nth-child(4) { transform: rotate(135deg); }
+  .boot-beam:nth-child(5) { transform: rotate(180deg); }
+  .boot-beam:nth-child(6) { transform: rotate(225deg); }
+  .boot-beam:nth-child(7) { transform: rotate(270deg); }
+  .boot-beam:nth-child(8) { transform: rotate(315deg); }
+
+  /* Shared: Title */
+  .boot-title {
+    font-family: 'Orbitron', sans-serif; font-size: 14px; font-weight: 700;
+    letter-spacing: 8px; color: rgba(0,212,255,0); margin-bottom: 30px; z-index: 10;
+  }
+  .boot-title.visible { animation: boot-title-in 0.6s ease-out forwards; }
+  @keyframes boot-title-in {
+    0% { color: rgba(0,212,255,0); letter-spacing: 16px; }
+    50% { color: rgba(255,255,255,1); letter-spacing: 10px; }
+    100% { color: rgba(0,212,255,0.9); letter-spacing: 8px; }
+  }
+
+  /* Shared: Modules */
+  .boot-modules {
+    font-family: 'Courier New', monospace; font-size: 13px; line-height: 2;
+    text-align: left; width: 340px; z-index: 10;
+  }
+  .boot-module { opacity: 0; color: rgba(0,212,255,0.5); display: flex; justify-content: space-between; }
+  .boot-module.checking { opacity: 1; animation: module-check-in 0.2s ease-out; }
+  @keyframes module-check-in { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+  .boot-module .module-name { color: rgba(0,212,255,0.6); }
+  .boot-module .module-status { color: rgba(0,212,255,0.4); font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 2px; }
+  .boot-module .module-status.online { color: #00ff88; text-shadow: 0 0 8px rgba(0,255,136,0.5); }
+
+  /* Shared: Final */
+  .boot-final {
+    font-family: 'Orbitron', sans-serif; font-size: 12px; font-weight: 700;
+    letter-spacing: 6px; color: rgba(0,255,136,0); margin-top: 30px; z-index: 10;
+  }
+  .boot-final.flash { animation: boot-final-flash 0.8s ease-out forwards; }
+  @keyframes boot-final-flash {
+    0% { color: rgba(0,255,136,0); letter-spacing: 12px; }
+    30% { color: rgba(255,255,255,1); letter-spacing: 8px; }
+    100% { color: rgba(0,255,136,0.9); letter-spacing: 6px; text-shadow: 0 0 20px rgba(0,255,136,0.5); }
+  }
+
+  /* ── VARIANT 1: Energy Rings (Enhanced) ── */
+  .boot-rings-container {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 1000px; height: 1000px; pointer-events: none; z-index: 2;
+  }
+  .boot-ring-expand {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    border-radius: 50%; width: 0; height: 0; opacity: 0;
+  }
+  /* Ring 1: Cyan, thick, solid */
+  .boot-ring-expand:nth-child(1) {
+    border: 2px solid rgba(0,212,255,0.8);
+    box-shadow: 0 0 15px rgba(0,212,255,0.4), inset 0 0 15px rgba(0,212,255,0.1);
+  }
+  .boot-ring-expand:nth-child(1).fire { animation: ring-fire-1 1.4s cubic-bezier(0.16,1,0.3,1) forwards; }
+  @keyframes ring-fire-1 {
+    0% { width: 0; height: 0; opacity: 1; }
+    60% { opacity: 0.7; }
+    100% { width: 900px; height: 900px; opacity: 0; }
+  }
+  /* Ring 2: Purple, dashed */
+  .boot-ring-expand:nth-child(2) {
+    border: 1.5px dashed rgba(160,100,255,0.7);
+    box-shadow: 0 0 12px rgba(160,100,255,0.3);
+  }
+  .boot-ring-expand:nth-child(2).fire { animation: ring-fire-2 1.3s cubic-bezier(0.16,1,0.3,1) 0.12s forwards; }
+  @keyframes ring-fire-2 {
+    0% { width: 0; height: 0; opacity: 1; }
+    100% { width: 750px; height: 750px; opacity: 0; }
+  }
+  /* Ring 3: Magenta, thin */
+  .boot-ring-expand:nth-child(3) {
+    border: 1px solid rgba(255,80,200,0.6);
+    box-shadow: 0 0 10px rgba(255,80,200,0.3);
+  }
+  .boot-ring-expand:nth-child(3).fire { animation: ring-fire-3 1.2s cubic-bezier(0.16,1,0.3,1) 0.25s forwards; }
+  @keyframes ring-fire-3 {
+    0% { width: 0; height: 0; opacity: 1; }
+    100% { width: 600px; height: 600px; opacity: 0; }
+  }
+  /* Ring 4: White flash, fast */
+  .boot-ring-expand:nth-child(4) {
+    border: 1px solid rgba(255,255,255,0.8);
+    box-shadow: 0 0 20px rgba(255,255,255,0.4);
+  }
+  .boot-ring-expand:nth-child(4).fire { animation: ring-fire-4 0.8s cubic-bezier(0.16,1,0.3,1) 0.4s forwards; }
+  @keyframes ring-fire-4 {
+    0% { width: 0; height: 0; opacity: 1; border-width: 3px; }
+    100% { width: 500px; height: 500px; opacity: 0; border-width: 0.5px; }
+  }
+
+  /* Hexagonal grid with radial gradient overlay */
+  .boot-grid-overlay {
+    position: absolute; inset: 0; opacity: 0; pointer-events: none; z-index: 1;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100'%3E%3Cpath d='M28 66L0 50V16L28 0l28 16v34zM28 100L0 84V50l28-16 28 16v34z' fill='none' stroke='rgba(0,212,255,0.07)' stroke-width='0.5'/%3E%3C/svg%3E");
+    background-size: 56px 100px;
+  }
+  .boot-grid-overlay::after {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, rgba(0,212,255,0.08) 0%, rgba(120,60,200,0.06) 50%, transparent 70%);
+  }
+  .boot-grid-overlay.reveal {
+    animation: grid-reveal-enhanced 1.2s ease-out forwards;
+  }
+  @keyframes grid-reveal-enhanced {
+    0% { opacity: 0; clip-path: circle(0% at 50% 50%); }
+    60% { opacity: 0.9; clip-path: circle(60% at 50% 50%); }
+    100% { opacity: 0.5; clip-path: circle(80% at 50% 50%); }
+  }
+
+  /* Floating particles */
+  .boot-particle {
+    position: absolute; width: 3px; height: 3px; border-radius: 50%;
+    background: rgba(0,212,255,0.8); box-shadow: 0 0 6px rgba(0,212,255,0.6);
+    opacity: 0; pointer-events: none; z-index: 3;
+  }
+  .boot-particle.float { animation: particle-float 3s ease-in-out forwards; }
+  .boot-particle:nth-child(1) { top: 30%; left: 20%; animation-delay: 0.2s; }
+  .boot-particle:nth-child(2) { top: 25%; left: 75%; animation-delay: 0.5s; background: rgba(160,100,255,0.8); box-shadow: 0 0 6px rgba(160,100,255,0.6); }
+  .boot-particle:nth-child(3) { top: 70%; left: 15%; animation-delay: 0.8s; }
+  .boot-particle:nth-child(4) { top: 65%; left: 80%; animation-delay: 0.4s; background: rgba(255,80,200,0.6); box-shadow: 0 0 6px rgba(255,80,200,0.4); }
+  .boot-particle:nth-child(5) { top: 45%; left: 90%; animation-delay: 0.6s; }
+  @keyframes particle-float {
+    0% { opacity: 0; transform: translateY(20px) scale(0); }
+    30% { opacity: 1; transform: translateY(0) scale(1.5); }
+    70% { opacity: 0.6; transform: translateY(-15px) scale(1); }
+    100% { opacity: 0; transform: translateY(-30px) scale(0.5); }
+  }
+
+  /* Module status enhancements */
+  .boot-module .module-status.checking {
+    color: #ffbd2e; text-shadow: 0 0 6px rgba(255,189,46,0.4);
+  }
+  .boot-module .module-status.online {
+    color: #00ff88; text-shadow: 0 0 10px rgba(0,255,136,0.6);
+    animation: module-online-pulse 0.4s ease-out;
+  }
+  @keyframes module-online-pulse {
+    0% { text-shadow: 0 0 30px rgba(0,255,136,1), 0 0 60px rgba(0,255,136,0.5); transform: scale(1.3); }
+    100% { text-shadow: 0 0 10px rgba(0,255,136,0.6); transform: scale(1); }
+  }
+
+  /* Final screen flash */
+  .boot-screen-flash {
+    position: absolute; inset: 0; background: rgba(0,212,255,0.15);
+    opacity: 0; pointer-events: none; z-index: 20;
+  }
+  .boot-screen-flash.flash {
+    animation: screen-flash 0.6s ease-out forwards;
+  }
+  @keyframes screen-flash {
+    0% { opacity: 0; }
+    20% { opacity: 1; background: rgba(255,255,255,0.15); }
+    100% { opacity: 0; }
+  }
+
+  /* ── VARIANT 2: Circuit Lines ── */
+  .boot-circuits {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 100%; height: 100%; pointer-events: none; z-index: 2;
+  }
+  .boot-circuit-line {
+    position: absolute; background: rgba(0,212,255,0.6);
+    box-shadow: 0 0 8px rgba(0,212,255,0.4), 0 0 16px rgba(0,212,255,0.2);
+    transform-origin: left center;
+  }
+  /* 4 lines going to 4 corners */
+  .boot-circuit-line:nth-child(1) { top: 50%; left: 50%; height: 2px; width: 0; transform: rotate(-30deg); }
+  .boot-circuit-line:nth-child(2) { top: 50%; left: 50%; height: 2px; width: 0; transform: rotate(30deg); }
+  .boot-circuit-line:nth-child(3) { top: 50%; left: 50%; height: 2px; width: 0; transform: rotate(-150deg); }
+  .boot-circuit-line:nth-child(4) { top: 50%; left: 50%; height: 2px; width: 0; transform: rotate(150deg); }
+  .boot-circuit-line.extend { animation: circuit-extend 0.5s cubic-bezier(0.16,1,0.3,1) forwards; }
+  .boot-circuit-line:nth-child(2).extend { animation-delay: 0.1s; }
+  .boot-circuit-line:nth-child(3).extend { animation-delay: 0.2s; }
+  .boot-circuit-line:nth-child(4).extend { animation-delay: 0.3s; }
+  @keyframes circuit-extend { 0% { width: 0; } 100% { width: 400px; } }
+
+  .boot-circuit-node {
+    position: absolute; width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(0,212,255,0.8); box-shadow: 0 0 12px rgba(0,212,255,0.6);
+    opacity: 0; transform: translate(-50%, -50%);
+  }
+  .boot-circuit-node.pulse {
+    opacity: 1; animation: node-pulse 0.5s ease-out forwards;
+  }
+  @keyframes node-pulse {
+    0% { transform: translate(-50%,-50%) scale(0); opacity: 1; }
+    50% { transform: translate(-50%,-50%) scale(2); }
+    100% { transform: translate(-50%,-50%) scale(1); opacity: 1; box-shadow: 0 0 20px rgba(0,255,136,0.8); background: #00ff88; }
+  }
+
+  /* Electric flicker on circuit lines */
+  .boot-circuit-line.active {
+    animation: circuit-flicker 0.3s ease-in-out 3;
+  }
+  @keyframes circuit-flicker {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* ── VARIANT 3: Hologram Scan ── */
+  .boot-scan-h {
+    position: absolute; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, transparent 10%, rgba(0,212,255,0.6) 50%, transparent 90%);
+    box-shadow: 0 0 20px rgba(0,212,255,0.4), 0 0 40px rgba(0,212,255,0.2);
+    opacity: 0; pointer-events: none; z-index: 3;
+  }
+  .boot-scan-h.sweep-down { top: 50%; animation: scan-h-down 1s cubic-bezier(0.16,1,0.3,1) forwards; }
+  .boot-scan-h.sweep-up { top: 50%; animation: scan-h-up 1s cubic-bezier(0.16,1,0.3,1) forwards; }
+  @keyframes scan-h-down { 0% { top: 50%; opacity: 1; } 100% { top: 100%; opacity: 0; } }
+  @keyframes scan-h-up { 0% { top: 50%; opacity: 1; } 100% { top: 0%; opacity: 0; } }
+
+  .boot-hex-grid {
+    position: absolute; inset: 0; opacity: 0; pointer-events: none; z-index: 1;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='52'%3E%3Cpath d='M30 0l30 15v22L30 52 0 37V15z' fill='none' stroke='rgba(0,212,255,0.08)' stroke-width='1'/%3E%3C/svg%3E");
+    background-size: 60px 52px;
+  }
+  .boot-hex-grid.reveal {
+    animation: hex-reveal 1.2s ease-out forwards;
+  }
+  @keyframes hex-reveal {
+    0% { opacity: 0; clip-path: inset(50% 0 50% 0); }
+    50% { opacity: 0.8; clip-path: inset(10% 0 10% 0); }
+    100% { opacity: 0.4; clip-path: inset(0 0 0 0); }
+  }
+
+  /* Data stream effect for variant 3 */
+  .boot-data-stream {
+    position: absolute; font-family: 'Courier New', monospace; font-size: 9px;
+    color: rgba(0,212,255,0.15); writing-mode: vertical-lr; letter-spacing: 3px;
+    opacity: 0; pointer-events: none; z-index: 1;
+  }
+  .boot-data-stream.flow { animation: data-flow 2s linear forwards; }
+  @keyframes data-flow { 0% { opacity: 0; } 20% { opacity: 0.4; } 80% { opacity: 0.2; } 100% { opacity: 0; } }
+
   /* === Conversation Log === */
   .conversation-log {
     position: absolute;
@@ -1271,6 +1567,71 @@
       <div class="code-panel-content" id="codePanelContent">
       </div>
       <div class="code-panel-scanlines"></div>
+    </div>
+
+    <!-- System Boot Screen -->
+    <div class="boot-screen" id="bootScreen">
+      <!-- Variant 1: Energy Rings -->
+      <div class="boot-rings-container" id="bootRings">
+        <div class="boot-ring-expand"></div>
+        <div class="boot-ring-expand"></div>
+        <div class="boot-ring-expand"></div>
+        <div class="boot-ring-expand"></div>
+      </div>
+      <div class="boot-grid-overlay" id="bootGrid"></div>
+
+      <!-- Variant 2: Circuit Lines -->
+      <div class="boot-circuits" id="bootCircuits">
+        <div class="boot-circuit-line"></div>
+        <div class="boot-circuit-line"></div>
+        <div class="boot-circuit-line"></div>
+        <div class="boot-circuit-line"></div>
+        <div class="boot-circuit-node" style="top:35%;left:30%"></div>
+        <div class="boot-circuit-node" style="top:35%;right:30%;left:auto"></div>
+        <div class="boot-circuit-node" style="top:65%;left:30%"></div>
+        <div class="boot-circuit-node" style="top:65%;right:30%;left:auto"></div>
+      </div>
+
+      <!-- Variant 3: Hologram Scan -->
+      <div class="boot-scan-h" id="bootScanDown"></div>
+      <div class="boot-scan-h" id="bootScanUp"></div>
+      <div class="boot-hex-grid" id="bootHex"></div>
+      <div class="boot-data-stream" style="left:15%;top:10%">01001010100101</div>
+      <div class="boot-data-stream" style="left:75%;top:5%">11010011101001</div>
+      <div class="boot-data-stream" style="left:85%;top:20%">00110101011010</div>
+      <div class="boot-data-stream" style="left:5%;top:15%">10101100110011</div>
+
+      <!-- Screen flash -->
+      <div class="boot-screen-flash" id="bootFlash"></div>
+
+      <!-- Floating particles (variant 1) -->
+      <div class="boot-particle" id="bp0"></div>
+      <div class="boot-particle" id="bp1"></div>
+      <div class="boot-particle" id="bp2"></div>
+      <div class="boot-particle" id="bp3"></div>
+      <div class="boot-particle" id="bp4"></div>
+
+      <!-- Energy beams -->
+      <div class="boot-energy-beams" id="bootBeams">
+        <div class="boot-beam"></div><div class="boot-beam"></div>
+        <div class="boot-beam"></div><div class="boot-beam"></div>
+        <div class="boot-beam"></div><div class="boot-beam"></div>
+        <div class="boot-beam"></div><div class="boot-beam"></div>
+      </div>
+
+      <!-- Shared elements -->
+      <div class="boot-reactor" id="bootReactor">
+        <div class="boot-reactor-ring-inner r1" id="bootRR1"></div>
+        <div class="boot-reactor-ring-inner r2" id="bootRR2"></div>
+      </div>
+      <div class="boot-title" id="bootTitle">JARVIS SYSTEM INITIALIZING</div>
+      <div class="boot-modules" id="bootModules">
+        <div class="boot-module" id="bm0"><span class="module-name">VOICE MODULE</span><span class="module-status" id="bs0">STANDBY</span></div>
+        <div class="boot-module" id="bm1"><span class="module-name">CAMERA FEED</span><span class="module-status" id="bs1">STANDBY</span></div>
+        <div class="boot-module" id="bm2"><span class="module-name">FACE RECOGNITION</span><span class="module-status" id="bs2">STANDBY</span></div>
+        <div class="boot-module" id="bm3"><span class="module-name">TTS ENGINE</span><span class="module-status" id="bs3">STANDBY</span></div>
+      </div>
+      <div class="boot-final" id="bootFinal">ALL SYSTEMS OPERATIONAL</div>
     </div>
 
     <!-- Boot Sequence Overlay -->
@@ -2431,6 +2792,12 @@
             collapseBrowserFeed();
           } else if (action === 'browser_boot') {
             bootBrowserFeed();
+          } else if (action === 'system_boot' || action === 'system_boot_1') {
+            runSystemBoot(1);
+          } else if (action === 'system_boot_2') {
+            runSystemBoot(2);
+          } else if (action === 'system_boot_3') {
+            runSystemBoot(3);
           }
           break;
         }
@@ -2513,6 +2880,156 @@
 
     // Click overlay to collapse
     $('zoomOverlay').addEventListener('click', collapseBrowserFeed);
+
+    // ============================================================
+    //  SYSTEM BOOT SEQUENCE (Full-screen JARVIS initialization)
+    // ============================================================
+    function runSystemBoot(variant) {
+      variant = variant || 1;
+      const screen = $('bootScreen');
+      const reactor = $('bootReactor');
+      const title = $('bootTitle');
+      const final_ = $('bootFinal');
+      const modules = [
+        { el: $('bm0'), status: $('bs0') },
+        { el: $('bm1'), status: $('bs1') },
+        { el: $('bm2'), status: $('bs2') },
+        { el: $('bm3'), status: $('bs3') },
+      ];
+
+      // Reset shared
+      reactor.classList.remove('glow');
+      title.classList.remove('visible');
+      final_.classList.remove('flash');
+      screen.classList.remove('fadeout');
+      $('bootRR1').classList.remove('spin');
+      $('bootRR2').classList.remove('spin');
+      $('bootBeams').classList.remove('fire');
+      $('bootFlash').classList.remove('flash');
+      document.querySelectorAll('.boot-particle').forEach(p => p.classList.remove('float'));
+      modules.forEach(m => {
+        m.el.classList.remove('checking');
+        m.status.classList.remove('online', 'checking');
+        m.status.textContent = 'STANDBY';
+      });
+
+      // Reset variant 1
+      const rings = $('bootRings').querySelectorAll('.boot-ring-expand');
+      rings.forEach(r => r.classList.remove('fire'));
+      $('bootGrid').classList.remove('reveal');
+
+      // Reset variant 2
+      const circuits = $('bootCircuits').querySelectorAll('.boot-circuit-line');
+      const nodes = $('bootCircuits').querySelectorAll('.boot-circuit-node');
+      circuits.forEach(c => { c.classList.remove('extend', 'active'); c.style.width = '0'; });
+      nodes.forEach(n => n.classList.remove('pulse'));
+
+      // Reset variant 3
+      $('bootScanDown').classList.remove('sweep-down');
+      $('bootScanUp').classList.remove('sweep-up');
+      $('bootHex').classList.remove('reveal');
+      document.querySelectorAll('.boot-data-stream').forEach(d => d.classList.remove('flow'));
+
+      // Hide all variant elements initially
+      $('bootRings').style.display = 'none';
+      $('bootGrid').style.display = 'none';
+      $('bootCircuits').style.display = 'none';
+      document.querySelectorAll('.boot-particle').forEach(p => p.style.display = 'none');
+      $('bootScanDown').style.display = 'none';
+      $('bootScanUp').style.display = 'none';
+      $('bootHex').style.display = 'none';
+      document.querySelectorAll('.boot-data-stream').forEach(d => d.style.display = 'none');
+
+      // Show boot screen
+      screen.classList.add('active');
+      void screen.offsetHeight;
+
+      // Phase 1: Reactor glow (0ms) — shared
+      reactor.classList.add('glow');
+      playBootSound();
+
+      // Variant-specific effects
+      // Reactor inner rings spin (all variants)
+      setTimeout(() => {
+        $('bootRR1').classList.add('spin');
+        $('bootRR2').classList.add('spin');
+      }, 400);
+
+      if (variant === 1) {
+        // ── Energy Rings (Enhanced) ──
+        $('bootRings').style.display = '';
+        $('bootGrid').style.display = '';
+
+        // Energy beams burst
+        setTimeout(() => { $('bootBeams').classList.add('fire'); }, 200);
+        // Rings fire with stagger
+        setTimeout(() => { rings.forEach(r => r.classList.add('fire')); }, 300);
+        // Hex grid reveal from center
+        setTimeout(() => { $('bootGrid').classList.add('reveal'); }, 500);
+        // Floating particles
+        setTimeout(() => {
+          document.querySelectorAll('.boot-particle').forEach(p => { p.style.display = ''; p.classList.add('float'); });
+        }, 400);
+
+      } else if (variant === 2) {
+        // ── Circuit Lines ──
+        $('bootCircuits').style.display = '';
+
+        setTimeout(() => { circuits.forEach(c => c.classList.add('extend')); }, 300);
+        const nodeDelays = [800, 1000, 1200, 1400];
+        nodes.forEach((n, i) => {
+          setTimeout(() => n.classList.add('pulse'), nodeDelays[i]);
+        });
+
+      } else if (variant === 3) {
+        // ── Hologram Scan ──
+        $('bootScanDown').style.display = '';
+        $('bootScanUp').style.display = '';
+        $('bootHex').style.display = '';
+        document.querySelectorAll('.boot-data-stream').forEach(d => d.style.display = '');
+
+        setTimeout(() => {
+          $('bootScanDown').classList.add('sweep-down');
+          $('bootScanUp').classList.add('sweep-up');
+        }, 300);
+        setTimeout(() => { $('bootHex').classList.add('reveal'); }, 500);
+        setTimeout(() => {
+          document.querySelectorAll('.boot-data-stream').forEach((d, i) => {
+            setTimeout(() => d.classList.add('flow'), i * 150);
+          });
+        }, 400);
+      }
+
+      // Phase 3: Title (500ms) — shared
+      setTimeout(() => { title.classList.add('visible'); }, 500);
+
+      // Phase 4: Modules (900~1800ms) — with yellow checking → green online
+      const moduleDelay = [900, 1200, 1500, 1800];
+      modules.forEach((m, i) => {
+        setTimeout(() => {
+          m.el.classList.add('checking');
+          m.status.textContent = 'CHECKING...';
+          m.status.classList.add('checking');
+        }, moduleDelay[i]);
+        setTimeout(() => {
+          m.status.textContent = 'ONLINE';
+          m.status.classList.remove('checking');
+          m.status.classList.add('online');
+        }, moduleDelay[i] + 250);
+      });
+
+      // Phase 5: Final (2300ms) + screen flash
+      setTimeout(() => {
+        final_.classList.add('flash');
+        $('bootFlash').classList.add('flash');
+      }, 2300);
+
+      // Phase 6: Fade out (3200ms)
+      setTimeout(() => { screen.classList.add('fadeout'); }, 3200);
+
+      // Phase 7: Hide (3700ms)
+      setTimeout(() => { screen.classList.remove('active', 'fadeout'); }, 3700);
+    }
 
     // ============================================================
     //  BROWSER BOOT SEQUENCE (Iron Man Hologram Materialization)
