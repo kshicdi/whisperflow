@@ -575,17 +575,7 @@ class WhisperFlowApp(rumps.App):
             # 자비스 역할극 ON
             Path(self.JARVIS_ROLEPLAY_FILE).touch()
 
-            # 카메라 피드 시작 (앱 내부 인스턴스로 관리)
-            if CameraFeed is None:
-                TextOutput.show_notification("WhisperFlow", "camera_feed 모듈을 불러올 수 없습니다")
-                log("[촬영] CameraFeed 모듈 없음")
-            else:
-                if self.camera_feed is not None:
-                    # 이미 실행 중이면 종료 후 재시작
-                    self.camera_feed.stop()
-                self.camera_feed = CameraFeed(camera_index=0)
-                self.camera_feed.start()
-                log("[촬영] 카메라 피드 시작 (camera_index=0)")
+            # 카메라는 촬영 모드에서 자동 시작하지 않음 — 음성 요청 시 수동 활성화
 
             # 제스처 컨트롤 시작 (맥북 카메라 = index 1)
             if GestureControl is None:
