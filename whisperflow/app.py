@@ -48,6 +48,11 @@ try:
 except ImportError:
     CameraFeed = None
 
+try:
+    from .gesture_control import GestureControl
+except ImportError:
+    GestureControl = None
+
 
 class WhisperFlowApp(rumps.App):
     """메뉴바 앱 클래스"""
@@ -124,6 +129,9 @@ class WhisperFlowApp(rumps.App):
 
         # 카메라 피드 인스턴스
         self.camera_feed = None
+
+        # 제스처 컨트롤 인스턴스
+        self.gesture_control = None
 
         # 녹음 시작/종료를 atomic하게 보호하는 락
         # hotkey_manager는 여러 스레드에서 on_hold_start를 호출할 수 있으므로
@@ -529,7 +537,7 @@ class WhisperFlowApp(rumps.App):
         self.library_tts_item.state = 0
 
     def _deactivate_jarvis_shoot_mode(self) -> None:
-        """JARVIS 촬영 모드 비활성화 (유튜브 TTS + 역할극 + 카메라 종료)"""
+        """JARVIS 촬영 모드 비활성화 (유튜브 TTS + 역할극 + 카메라 + 제스처 종료)"""
         (Path.home() / ".whisperflow_youtube_tts").unlink(missing_ok=True)
         Path(self.JARVIS_ROLEPLAY_FILE).unlink(missing_ok=True)
         self.jarvis_shoot_item.state = 0
@@ -538,6 +546,12 @@ class WhisperFlowApp(rumps.App):
         if self.camera_feed is not None:
             self.camera_feed.stop()
             self.camera_feed = None
+
+        # 제스처 컨트롤 종료
+        if self.gesture_control is not None:
+            self.gesture_control.stop()
+            self.gesture_control = None
+
         self._ws_broadcast("broadcast_raw", '{"type":"browser_stop"}')
 
     def _toggle_jarvis_shoot_mode(self, sender) -> None:
@@ -572,6 +586,16 @@ class WhisperFlowApp(rumps.App):
                 self.camera_feed = CameraFeed(camera_index=0)
                 self.camera_feed.start()
                 log("[촬영] 카메라 피드 시작 (camera_index=0)")
+
+            # 제스처 컨트롤 시작 (맥북 카메라 = index 1)
+            if GestureControl is None:
+                log("[촬영] GestureControl 모듈 없음 - 제스처 컨트롤 비활성화")
+            else:
+                if self.gesture_control is not None:
+                    self.gesture_control.stop()
+                self.gesture_control = GestureControl(camera_index=1)
+                self.gesture_control.start()
+                log("[촬영] 제스처 컨트롤 시작 (camera_index=1)")
 
             # 시스템 부팅 시퀀스 전송
             self._ws_broadcast("broadcast_raw", '{"type":"ui_action","value":"system_boot"}')
