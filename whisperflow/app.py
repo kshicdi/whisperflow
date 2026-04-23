@@ -602,7 +602,8 @@ class WhisperFlowApp(rumps.App):
                 self.always_listen = AlwaysListen(
                     on_double_clap=self._on_double_clap,
                     on_wake=self._on_wake_word,
-                    on_speech_detected=self._on_speech_detected
+                    on_speech_detected=self._on_speech_detected,
+                    on_audio_level=self._on_audio_level
                 )
                 self.always_listen.start()
                 # filming_scenarios에 참조 전달 (TTS 중 마이크 음소거용)
@@ -618,6 +619,11 @@ class WhisperFlowApp(rumps.App):
         log("[상시청취] 더블 클랩 감지! → 시스템 온라인")
         from . import filming_scenarios
         filming_scenarios._handle_system_online("")
+
+    def _on_audio_level(self, level: float) -> None:
+        """실시간 오디오 레벨 → JARVIS UI 파티클 반응"""
+        if self.ws_server:
+            self.ws_server.broadcast_audio_level(level)
 
     def _on_wake_word(self) -> None:
         """웨이크 워드 감지 → JARVIS UI 리스닝 상태"""

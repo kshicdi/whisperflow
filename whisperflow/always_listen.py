@@ -31,6 +31,7 @@ class AlwaysListen:
         on_double_clap: Optional[Callable[[], None]] = None,
         on_wake: Optional[Callable[[], None]] = None,
         on_speech_detected: Optional[Callable[[np.ndarray, int], None]] = None,
+        on_audio_level: Optional[Callable[[float], None]] = None,
         clap_threshold: float = 0.025,
         wake_threshold: float = 0.5,
         speech_threshold: float = 0.008,
@@ -48,6 +49,7 @@ class AlwaysListen:
         self.on_double_clap = on_double_clap
         self.on_wake = on_wake
         self.on_speech_detected = on_speech_detected
+        self.on_audio_level = on_audio_level
         self.clap_threshold = clap_threshold
         self.wake_threshold = wake_threshold
         self.speech_threshold = speech_threshold
@@ -166,6 +168,12 @@ class AlwaysListen:
                 self._process_wake(audio_int16, audio_raw)
             elif self._state == _STATE_SPEECH:
                 self._process_vad(audio_raw, block_duration)
+                # 녹음 중 오디오 레벨 전송 (파티클 반응용)
+                if self.on_audio_level:
+                    amp = float(np.max(np.abs(audio_raw)))
+                    # 0~1로 정규화 (맥북 마이크 레벨 기준 30배 증폭)
+                    level = min(1.0, amp * 30)
+                    self.on_audio_level(level)
 
     def _process_clap(self, audio: np.ndarray, block_duration: float) -> None:
         """박수(더블 클랩) 감지 → 시스템 온라인 후 IDLE 전환."""
