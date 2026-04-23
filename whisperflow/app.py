@@ -53,6 +53,11 @@ try:
 except ImportError:
     GestureControl = None
 
+try:
+    from .always_listen import AlwaysListen
+except ImportError:
+    AlwaysListen = None
+
 
 class WhisperFlowApp(rumps.App):
     """메뉴바 앱 클래스"""
@@ -132,6 +137,9 @@ class WhisperFlowApp(rumps.App):
 
         # 제스처 컨트롤 인스턴스
         self.gesture_control = None
+
+        # 상시 청취 인스턴스
+        self.always_listen = None
 
         # 녹음 시작/종료를 atomic하게 보호하는 락
         # hotkey_manager는 여러 스레드에서 on_hold_start를 호출할 수 있으므로
@@ -552,6 +560,11 @@ class WhisperFlowApp(rumps.App):
             self.gesture_control.stop()
             self.gesture_control = None
 
+        # 상시 청취 종료
+        if self.always_listen is not None:
+            self.always_listen.stop()
+            self.always_listen = None
+
         self._ws_broadcast("broadcast_raw", '{"type":"browser_stop"}')
 
     def _toggle_jarvis_shoot_mode(self, sender) -> None:
@@ -587,10 +600,38 @@ class WhisperFlowApp(rumps.App):
                 self.gesture_control.start()
                 log("[촬영] 제스처 컨트롤 시작 (camera_index=1)")
 
-            # 시스템 부팅 시퀀스 전송
-            self._ws_broadcast("broadcast_raw", '{"type":"ui_action","value":"system_boot"}')
-            log("[촬영] JARVIS 촬영 모드 ON")
+            # 상시 청취 시작 (박수 감지 + 음성 감지)
+            if AlwaysListen is not None:
+                if self.always_listen is not None:
+                    self.always_listen.stop()
+                self.always_listen = AlwaysListen(
+                    on_double_clap=self._on_double_clap,
+                    on_speech_detected=self._on_speech_detected
+                )
+                self.always_listen.start()
+                log("[촬영] 상시 청취 시작")
+
+            log("[촬영] JARVIS 촬영 모드 ON (박수 2번으로 시스템 온라인)")
             TextOutput.show_notification("WhisperFlow", "JARVIS 촬영 모드 ON")
+
+    def _on_double_clap(self) -> None:
+        """박수 2번 감지 → 시스템 온라인"""
+        log("[상시청취] 더블 클랩 감지! → 시스템 온라인")
+        from . import filming_scenarios
+        filming_scenarios._handle_system_online("")
+
+    def _on_speech_detected(self, audio_data, sample_rate) -> None:
+        """음성 감지 → Whisper 변환 → 시나리오 실행"""
+        log("[상시청취] 음성 감지 → Whisper 변환 시작")
+        import tempfile, soundfile as sf
+        try:
+            # 임시 WAV 파일로 저장
+            tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+            sf.write(tmp.name, audio_data, sample_rate)
+            # Whisper로 변환
+            self.transcriber.transcribe_async(tmp.name)
+        except Exception as e:
+            log(f"[상시청취] 변환 오류: {e}")
 
     def _on_recording_start(self) -> None:
         """녹음 시작 콜백"""
