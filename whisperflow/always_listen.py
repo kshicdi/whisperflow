@@ -32,7 +32,7 @@ class AlwaysListen:
         on_wake: Optional[Callable[[], None]] = None,
         on_speech_detected: Optional[Callable[[np.ndarray, int], None]] = None,
         clap_threshold: float = 0.025,
-        wake_threshold: float = 0.15,
+        wake_threshold: float = 0.5,
         speech_threshold: float = 0.008,
         sample_rate: int = 16000,
     ):
@@ -52,7 +52,7 @@ class AlwaysListen:
         self.wake_threshold = wake_threshold
         self.speech_threshold = speech_threshold
         self.sample_rate = sample_rate
-        self._audio_gain = 50  # 맥북 마이크 증폭 배율
+        self._audio_gain = 20  # 맥북 마이크 증폭 배율
 
         self._running = False
         self._stream: Optional[sd.InputStream] = None
