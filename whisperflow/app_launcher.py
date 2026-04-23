@@ -43,6 +43,14 @@ class AppLauncher:
     }
 
     @classmethod
+    def _play_preset_sound(cls, filename: str) -> None:
+        """미리 저장된 음성 파일 재생"""
+        sounds_dir = os.path.join(os.path.dirname(__file__), "static", "sounds")
+        path = os.path.join(sounds_dir, filename)
+        if os.path.exists(path):
+            subprocess.Popen(["afplay", "-r", "1.4", path])
+
+    @classmethod
     def _move_to_secondary_monitor(cls, app_name: str) -> None:
         """앱 창을 보조 모니터로 이동"""
         import time
@@ -199,6 +207,12 @@ class AppLauncher:
         # 액션 단어가 있어야만 앱/URL 명령으로 인식
         action_words = ['열어', '실행', '켜줘', '켜봐', '가줘', '가봐', '보여줘', '틀어', '이동']
         has_action = any(w in text_lower for w in action_words)
+
+        # 음악 틀어줘 → Apple Music 창 열기 + 음성 응답 (실제 재생은 안 함)
+        if ('음악' in text_lower or '뮤직' in text_lower) and has_action:
+            cls.launch_app('Music', move_window=False)
+            cls._play_preset_sound('music_play.wav')
+            return {"success": True, "action": "launch_app_voice", "target": "음악"}
 
         if has_action:
             # URL 매핑 체크
