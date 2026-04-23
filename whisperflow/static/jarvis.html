@@ -2133,20 +2133,18 @@
             break;
           }
           case 'recording': {
-            // EXPLOSIVE — audio-reactive outward burst
-            const audioBoost = level * 120;
-            const chaos = Math.sin(t * 8 + i * 2.7) * (10 + level * 30);
-            const spinSpeed = 2.5 + level * 3;
-            const a = p.baseAngle + t * p.speed * spinSpeed;
-            const baseExpand = p.baseRadius * 1.8 + audioBoost;
-            const wave = Math.sin(t * 5 + p.phase) * (20 + level * 40);
-            const r = baseExpand + wave + chaos;
+            // Smooth audio-reactive expansion
+            const audioBoost = level * 40;
+            const a = p.baseAngle + t * p.speed * (0.8 + level * 0.5);
+            const baseExpand = p.baseRadius * 1.1 + audioBoost;
+            const wave = Math.sin(t * 2 + p.phase) * (5 + level * 12);
+            const r = baseExpand + wave;
             const tx = cx + Math.cos(a) * r;
             const ty = cy + Math.sin(a) * r;
-            p.x += (tx - p.x) * 0.08;
-            p.y += (ty - p.y) * 0.08;
-            // Heavy noise — particles jitter with audio
-            const noiseAmp = 3 + level * 8;
+            p.x += (tx - p.x) * 0.04;
+            p.y += (ty - p.y) * 0.04;
+            // Gentle jitter
+            const noiseAmp = 0.5 + level * 1.5;
             p.x += (Math.random() - 0.5) * noiseAmp;
             p.y += (Math.random() - 0.5) * noiseAmp;
             break;
