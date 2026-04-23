@@ -590,17 +590,12 @@ class WhisperFlowApp(rumps.App):
 
             # 카메라는 촬영 모드에서 자동 시작하지 않음 — 음성 요청 시 수동 활성화
 
-            # 제스처 컨트롤 시작 (맥북 카메라 = index 1)
-            if GestureControl is None:
-                log("[촬영] GestureControl 모듈 없음 - 제스처 컨트롤 비활성화")
-            else:
-                if self.gesture_control is not None:
-                    self.gesture_control.stop()
-                self.gesture_control = GestureControl(camera_index=1)
-                self.gesture_control.start()
-                log("[촬영] 제스처 컨트롤 시작 (camera_index=1)")
+            # 제스처 컨트롤 — 비활성화 (mediapipe 호환 문제, 이슈 #9에서 해결 예정)
+            # if GestureControl is not None:
+            #     self.gesture_control = GestureControl(camera_index=1)
+            #     self.gesture_control.start()
 
-            # 상시 청취 시작 (박수 감지 + 음성 감지)
+            # 상시 청취 시작 (웨이크 워드 + 음성 감지)
             if AlwaysListen is not None:
                 if self.always_listen is not None:
                     self.always_listen.stop()
