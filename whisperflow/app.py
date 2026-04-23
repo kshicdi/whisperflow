@@ -643,6 +643,7 @@ class WhisperFlowApp(rumps.App):
                 wf.setsampwidth(2)
                 wf.setframerate(sample_rate)
                 wf.writeframes(audio_int16.tobytes())
+            self._remote_recording = True  # 터미널에 붙여넣기 위해
             self.transcriber.transcribe_async(tmp.name)
         except Exception as e:
             log(f"[상시청취] 변환 오류: {e}")
