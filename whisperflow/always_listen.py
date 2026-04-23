@@ -77,6 +77,8 @@ class AlwaysListen:
         self._clap_min_gap = 0.15  # 두 번째 클랩까지 최소 간격 (초)
         self._clap_max_gap = 1.0   # 두 번째 클랩까지 최대 간격 (초)
         self._clap_max_dur = 0.15  # 클랩 피크의 최대 지속 시간 (150ms)
+        self._clap_cooldown = 10.0  # 더블 클랩 후 쿨다운 시간 (초)
+        self._last_clap_fired: float = 0  # 마지막 더블 클랩 발동 시각
 
     # ------------------------------------------------------------------
     # 공개 인터페이스
@@ -138,6 +140,10 @@ class AlwaysListen:
         now: float,
     ) -> None:
         """박수(더블 클랩) 감지 로직."""
+        # 쿨다운 중이면 무시
+        if (now - self._last_clap_fired) < self._clap_cooldown:
+            return
+
         is_peak = amplitude >= self.clap_threshold
 
         if is_peak:
@@ -152,7 +158,8 @@ class AlwaysListen:
                         self._last_peak_time = None
                         self._peak_start_time = None
                         self._prev_quiet = False
-                        # 콜백은 락 밖에서 호출하기 위해 스레드로 분기
+                        # 쿨다운 시작 + 콜백은 락 밖에서 호출
+                        self._last_clap_fired = now
                         threading.Thread(
                             target=self._fire_clap, daemon=True
                         ).start()
