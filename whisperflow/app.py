@@ -669,6 +669,8 @@ class WhisperFlowApp(rumps.App):
             jarvis_roleplay = Path(self.JARVIS_ROLEPLAY_FILE).exists()
             if jarvis_roleplay:
                 from . import filming_scenarios
+                # 사용자 입력 텍스트를 먼저 UI에 표시
+                self._ws_broadcast("broadcast_transcript", text)
                 if filming_scenarios.handle(text):
                     log(f"[촬영시나리오] 매칭: {text[:50]}")
                     self._ws_broadcast("broadcast_state", "idle")
