@@ -1487,6 +1487,58 @@
   <div class="vignette"></div>
   <div class="scanlines"></div>
 
+  <!-- System Boot Screen (hud-container 밖 — hidden 영향 안 받음) -->
+  <div class="boot-screen" id="bootScreen">
+    <div class="boot-rings-container" id="bootRings">
+      <div class="boot-ring-expand"></div>
+      <div class="boot-ring-expand"></div>
+      <div class="boot-ring-expand"></div>
+      <div class="boot-ring-expand"></div>
+    </div>
+    <div class="boot-grid-overlay" id="bootGrid"></div>
+    <div class="boot-circuits" id="bootCircuits">
+      <div class="boot-circuit-line"></div>
+      <div class="boot-circuit-line"></div>
+      <div class="boot-circuit-line"></div>
+      <div class="boot-circuit-line"></div>
+      <div class="boot-circuit-node" style="top:35%;left:30%"></div>
+      <div class="boot-circuit-node" style="top:35%;right:30%;left:auto"></div>
+      <div class="boot-circuit-node" style="top:65%;left:30%"></div>
+      <div class="boot-circuit-node" style="top:65%;right:30%;left:auto"></div>
+    </div>
+    <div class="boot-scan-h" id="bootScanDown"></div>
+    <div class="boot-scan-h" id="bootScanUp"></div>
+    <div class="boot-hex-grid" id="bootHex"></div>
+    <div class="boot-data-stream" style="left:15%;top:10%">01001010100101</div>
+    <div class="boot-data-stream" style="left:75%;top:5%">11010011101001</div>
+    <div class="boot-data-stream" style="left:85%;top:20%">00110101011010</div>
+    <div class="boot-data-stream" style="left:5%;top:15%">10101100110011</div>
+    <div class="boot-screen-flash" id="bootFlash"></div>
+    <div class="boot-particle" id="bp0"></div>
+    <div class="boot-particle" id="bp1"></div>
+    <div class="boot-particle" id="bp2"></div>
+    <div class="boot-particle" id="bp3"></div>
+    <div class="boot-particle" id="bp4"></div>
+    <div class="boot-energy-beams" id="bootBeams">
+      <div class="boot-beam"></div><div class="boot-beam"></div>
+      <div class="boot-beam"></div><div class="boot-beam"></div>
+      <div class="boot-beam"></div><div class="boot-beam"></div>
+      <div class="boot-beam"></div><div class="boot-beam"></div>
+    </div>
+    <div class="boot-reactor" id="bootReactor">
+      <div class="boot-reactor-ring-inner r1" id="bootRR1"></div>
+      <div class="boot-reactor-ring-inner r2" id="bootRR2"></div>
+    </div>
+    <div class="boot-title" id="bootTitle">JARVIS SYSTEM INITIALIZING</div>
+    <div class="boot-modules" id="bootModules">
+      <div class="boot-module" id="bm0"><span class="module-name">VOICE MODULE</span><span class="module-status" id="bs0">STANDBY</span></div>
+      <div class="boot-module" id="bm1"><span class="module-name">CAMERA FEED</span><span class="module-status" id="bs1">STANDBY</span></div>
+      <div class="boot-module" id="bm2"><span class="module-name">FACE RECOGNITION</span><span class="module-status" id="bs2">STANDBY</span></div>
+      <div class="boot-module" id="bm3"><span class="module-name">TTS ENGINE</span><span class="module-status" id="bs3">STANDBY</span></div>
+    </div>
+    <div class="boot-final" id="bootFinal">ALL SYSTEMS OPERATIONAL</div>
+  </div>
+
   <div class="hud-container hidden">
     <!-- Corners -->
     <div class="corner tl"></div>
@@ -1580,71 +1632,6 @@
       <div class="code-panel-content" id="codePanelContent">
       </div>
       <div class="code-panel-scanlines"></div>
-    </div>
-
-    <!-- System Boot Screen -->
-    <div class="boot-screen" id="bootScreen">
-      <!-- Variant 1: Energy Rings -->
-      <div class="boot-rings-container" id="bootRings">
-        <div class="boot-ring-expand"></div>
-        <div class="boot-ring-expand"></div>
-        <div class="boot-ring-expand"></div>
-        <div class="boot-ring-expand"></div>
-      </div>
-      <div class="boot-grid-overlay" id="bootGrid"></div>
-
-      <!-- Variant 2: Circuit Lines -->
-      <div class="boot-circuits" id="bootCircuits">
-        <div class="boot-circuit-line"></div>
-        <div class="boot-circuit-line"></div>
-        <div class="boot-circuit-line"></div>
-        <div class="boot-circuit-line"></div>
-        <div class="boot-circuit-node" style="top:35%;left:30%"></div>
-        <div class="boot-circuit-node" style="top:35%;right:30%;left:auto"></div>
-        <div class="boot-circuit-node" style="top:65%;left:30%"></div>
-        <div class="boot-circuit-node" style="top:65%;right:30%;left:auto"></div>
-      </div>
-
-      <!-- Variant 3: Hologram Scan -->
-      <div class="boot-scan-h" id="bootScanDown"></div>
-      <div class="boot-scan-h" id="bootScanUp"></div>
-      <div class="boot-hex-grid" id="bootHex"></div>
-      <div class="boot-data-stream" style="left:15%;top:10%">01001010100101</div>
-      <div class="boot-data-stream" style="left:75%;top:5%">11010011101001</div>
-      <div class="boot-data-stream" style="left:85%;top:20%">00110101011010</div>
-      <div class="boot-data-stream" style="left:5%;top:15%">10101100110011</div>
-
-      <!-- Screen flash -->
-      <div class="boot-screen-flash" id="bootFlash"></div>
-
-      <!-- Floating particles (variant 1) -->
-      <div class="boot-particle" id="bp0"></div>
-      <div class="boot-particle" id="bp1"></div>
-      <div class="boot-particle" id="bp2"></div>
-      <div class="boot-particle" id="bp3"></div>
-      <div class="boot-particle" id="bp4"></div>
-
-      <!-- Energy beams -->
-      <div class="boot-energy-beams" id="bootBeams">
-        <div class="boot-beam"></div><div class="boot-beam"></div>
-        <div class="boot-beam"></div><div class="boot-beam"></div>
-        <div class="boot-beam"></div><div class="boot-beam"></div>
-        <div class="boot-beam"></div><div class="boot-beam"></div>
-      </div>
-
-      <!-- Shared elements -->
-      <div class="boot-reactor" id="bootReactor">
-        <div class="boot-reactor-ring-inner r1" id="bootRR1"></div>
-        <div class="boot-reactor-ring-inner r2" id="bootRR2"></div>
-      </div>
-      <div class="boot-title" id="bootTitle">JARVIS SYSTEM INITIALIZING</div>
-      <div class="boot-modules" id="bootModules">
-        <div class="boot-module" id="bm0"><span class="module-name">VOICE MODULE</span><span class="module-status" id="bs0">STANDBY</span></div>
-        <div class="boot-module" id="bm1"><span class="module-name">CAMERA FEED</span><span class="module-status" id="bs1">STANDBY</span></div>
-        <div class="boot-module" id="bm2"><span class="module-name">FACE RECOGNITION</span><span class="module-status" id="bs2">STANDBY</span></div>
-        <div class="boot-module" id="bm3"><span class="module-name">TTS ENGINE</span><span class="module-status" id="bs3">STANDBY</span></div>
-      </div>
-      <div class="boot-final" id="bootFinal">ALL SYSTEMS OPERATIONAL</div>
     </div>
 
     <!-- Boot Sequence Overlay -->
