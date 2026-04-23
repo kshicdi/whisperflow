@@ -22,16 +22,26 @@ def _send(msg_type, value):
         subprocess.run([_VENV_PYTHON, _JARVIS_SEND, msg_type, value], capture_output=True)
 
 
+_always_listen_ref = None  # app.py에서 설정
+
 def _play_and_display(sound_file, text):
-    """음성 재생 + JARVIS UI 텍스트 표시 + speaking 파형"""
+    """음성 재생 + JARVIS UI 텍스트 표시 + speaking 파형 (마이크 일시 중지)"""
     path = os.path.join(_SOUNDS_DIR, sound_file)
     if not os.path.exists(path):
         return
+    # TTS 재생 중 마이크 음소거 (자기 소리 듣기 방지)
+    if _always_listen_ref:
+        _always_listen_ref.mute()
     _send("state", "tts_playing")
     _send("output", text)
     p = subprocess.Popen(["afplay", "-r", "1.4", path])
     p.wait()
     _send("state", "idle")
+    # 재생 끝나면 마이크 복원 (약간 대기 후)
+    import time
+    time.sleep(0.5)
+    if _always_listen_ref:
+        _always_listen_ref.unmute()
 
 
 def _async_play(sound_file, text):

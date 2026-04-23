@@ -605,6 +605,9 @@ class WhisperFlowApp(rumps.App):
                     on_speech_detected=self._on_speech_detected
                 )
                 self.always_listen.start()
+                # filming_scenarios에 참조 전달 (TTS 중 마이크 음소거용)
+                from . import filming_scenarios
+                filming_scenarios._always_listen_ref = self.always_listen
                 log("[촬영] 상시 청취 시작")
 
             log("[촬영] JARVIS 촬영 모드 ON (박수 2번으로 시스템 온라인)")

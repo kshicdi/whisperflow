@@ -57,6 +57,7 @@ class AlwaysListen:
         self._running = False
         self._stream: Optional[sd.InputStream] = None
         self._lock = threading.Lock()
+        self._muted = False  # TTS 재생 중 마이크 일시 중지
 
         # --- 상태 (박수 대기부터 시작) ---
         self._state: str = _STATE_BOOT_WAIT
@@ -116,6 +117,14 @@ class AlwaysListen:
         self._stream.start()
         print("[AlwaysListen] 스트림 시작. Hey Jarvis를 기다리는 중...")
 
+    def mute(self) -> None:
+        """TTS 재생 중 마이크 일시 중지."""
+        self._muted = True
+
+    def unmute(self) -> None:
+        """TTS 재생 후 마이크 재개."""
+        self._muted = False
+
     def stop(self) -> None:
         """오디오 스트림을 중지한다."""
         self._running = False
@@ -137,7 +146,7 @@ class AlwaysListen:
         status,
     ) -> None:
         """sounddevice 실시간 오디오 콜백 (80ms 단위 호출)."""
-        if not self._running:
+        if not self._running or self._muted:
             return
         if status:
             print(f"[AlwaysListen] stream status: {status}")
