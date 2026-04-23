@@ -622,7 +622,6 @@ class WhisperFlowApp(rumps.App):
             if cmd_result["success"]:
                 log(f"[직접실행] {cmd_result['action']}: {cmd_result['target']}")
                 self._ws_broadcast("broadcast_state", "idle")
-                self._ws_broadcast("broadcast_transcript", text)
                 return
 
             # 매칭 안 되면 Claude Code로 전달

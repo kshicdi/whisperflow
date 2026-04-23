@@ -189,9 +189,10 @@ class AppLauncher:
                 success = cls.launch_app(app_name)
                 return {"success": success, "action": "launch_app", "target": keyword}
 
-        # JARVIS 온라인 명령
+        # JARVIS 온라인 명령 (별도 스레드로 실행 — 블로킹 방지)
         if '자비스' in text_lower and ('온라인' in text_lower or '시스템' in text_lower):
-            cls.jarvis_online()
+            import threading
+            threading.Thread(target=cls.jarvis_online, daemon=True).start()
             return {"success": True, "action": "jarvis_online", "target": "system"}
 
         return {"success": False, "action": "unknown", "target": text}
@@ -207,24 +208,14 @@ class AppLauncher:
         jarvis_send = os.path.join(os.path.dirname(__file__), "jarvis_send.py")
         venv_python = os.path.join(os.path.dirname(__file__), "..", "venv", "bin", "python")
 
-        # 0. JARVIS UI를 Chrome 앱 모드로 열고 전체화면 전환
+        # 0. JARVIS UI를 별도 Chrome 프로필 + 앱 모드 + 전체화면으로 열기
         subprocess.Popen([
             "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
             "--app=http://localhost:8767",
-            "--new-window"
+            "--user-data-dir=" + os.path.expanduser("~/.chrome-jarvis-ui"),
+            "--start-fullscreen"
         ])
         time.sleep(3)
-        # 메뉴바에서 전체화면 열기
-        subprocess.run(["osascript", "-e", '''
-            tell application "Google Chrome" to activate
-            delay 0.5
-            tell application "System Events"
-                tell process "Google Chrome"
-                    click menu item "전체화면 열기" of menu "보기" of menu bar 1
-                end tell
-            end tell
-        '''], capture_output=True)
-        time.sleep(2)
 
         # 1. Welcome home, sir.
         if os.path.exists(welcome):
