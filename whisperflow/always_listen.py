@@ -64,6 +64,8 @@ class AlwaysListen:
         # --- VAD 상태 ---
         self._silence_duration: float = 0.0
         self._silence_end: float = 1.5      # 묵음 이 시간 이상 지속 시 녹음 종료
+        self._min_record_time: float = 3.0  # 최소 녹음 시간 (초) — 이 시간 전에는 묵음 무시
+        self._record_start_time: float = 0.0
         self._record_buffer: list[np.ndarray] = []
 
         # --- openWakeWord 모델 (start() 호출 시 로드) ---
@@ -161,6 +163,7 @@ class AlwaysListen:
             self._last_wake_time = now
             self._state = _STATE_SPEECH
             self._silence_duration = 0.0
+            self._record_start_time = now
             self._record_buffer.clear()
 
             print(f"[AlwaysListen] 웨이크 워드 감지! (점수: {score:.3f})")
@@ -169,6 +172,11 @@ class AlwaysListen:
     def _process_vad(self, audio: np.ndarray, block_duration: float) -> None:
         """웨이크 워드 감지 후 VAD로 묵음 구간 검출."""
         self._record_buffer.append(audio.copy())
+
+        # 최소 녹음 시간 이전에는 묵음 체크 안 함
+        elapsed = time.monotonic() - self._record_start_time
+        if elapsed < self._min_record_time:
+            return
 
         amplitude = float(np.max(np.abs(audio)))
         is_speech = amplitude >= self.speech_threshold
