@@ -129,19 +129,19 @@ class AlwaysListen:
         if status:
             print(f"[AlwaysListen] stream status: {status}")
 
-        # mono float32, shape: (frames, 1) → 1D + 증폭
-        audio_f32 = indata[:, 0] * self._audio_gain
-        audio_f32 = np.clip(audio_f32, -1.0, 1.0)
+        # mono float32, shape: (frames, 1) → 1D
+        audio_raw = indata[:, 0].copy()  # 원본 (VAD용)
         block_duration = frames / self.sample_rate
 
-        # openWakeWord predict()용 int16 변환
-        audio_int16 = (audio_f32 * 32767).astype(np.int16)
+        # 증폭 버전 (웨이크 워드 감지용)
+        audio_amplified = np.clip(audio_raw * self._audio_gain, -1.0, 1.0)
+        audio_int16 = (audio_amplified * 32767).astype(np.int16)
 
         with self._lock:
             if self._state == _STATE_IDLE:
-                self._process_wake(audio_int16, audio_f32)
+                self._process_wake(audio_int16, audio_raw)
             elif self._state == _STATE_SPEECH:
-                self._process_vad(audio_f32, block_duration)
+                self._process_vad(audio_raw, block_duration)
 
     def _process_wake(self, audio_int16: np.ndarray, audio_f32: np.ndarray) -> None:
         """openWakeWord로 웨이크 워드 감지."""
