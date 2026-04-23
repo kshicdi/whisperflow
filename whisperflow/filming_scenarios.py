@@ -154,9 +154,56 @@ SCENARIOS = [
 ]
 
 
+def _handle_general(text):
+    """시나리오 매칭 안 된 일반 명령 → Claude CLI로 처리"""
+    def _run():
+        try:
+            # Claude CLI 호출 (자비스 스타일 응답 지시)
+            prompt = f'[자비스] 다음 질문에 자비스처럼 간결하게 1~3문장으로 답변해. 마크다운 금지. sir로 끝내.: {text}'
+            result = subprocess.run(
+                ["claude", "-p", prompt],
+                capture_output=True, text=True, timeout=30
+            )
+            response = result.stdout.strip()
+            if response:
+                # JARVIS UI에 표시
+                if _always_listen_ref:
+                    _always_listen_ref.mute()
+                _send("state", "tts_playing")
+                _send("output", response)
+
+                # Qwen TTS로 음성 재생
+                try:
+                    import urllib.request, json, tempfile
+                    data = json.dumps({'text': response, 'voice': 'clone:jarvis', 'speed': 1.0}).encode()
+                    req = urllib.request.Request('http://localhost:9093/generate', data=data,
+                                               headers={'Content-Type': 'application/json'})
+                    resp = urllib.request.urlopen(req, timeout=30)
+                    audio = resp.read()
+                    tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+                    tmp.write(audio)
+                    tmp.close()
+                    p = subprocess.Popen(["afplay", "-r", "1.4", tmp.name])
+                    p.wait()
+                    os.unlink(tmp.name)
+                except Exception:
+                    pass
+
+                _send("state", "idle")
+                import time
+                time.sleep(0.5)
+                if _always_listen_ref:
+                    _always_listen_ref.unmute()
+        except Exception as e:
+            print(f"[촬영시나리오] Claude CLI 오류: {e}")
+
+    threading.Thread(target=_run, daemon=True).start()
+    return True
+
+
 def handle(text: str) -> bool:
-    """촬영 시나리오 매칭 및 실행.
-    Returns: True면 매칭됨 (터미널 전달 안 함), False면 매칭 안 됨."""
+    """촬영 시나리오 매칭 및 실행. 매칭 안 되면 Claude CLI로 처리.
+    Returns: True (항상 촬영 모드에서 처리)"""
     text_lower = text.strip().lower()
     for condition, handler in SCENARIOS:
         if condition(text_lower):
@@ -164,4 +211,6 @@ def handle(text: str) -> bool:
                 return handler(text)
             except Exception:
                 return False
+    # 매칭 안 되면 Claude CLI로 일반 질문 처리
+    return _handle_general(text)
     return False
