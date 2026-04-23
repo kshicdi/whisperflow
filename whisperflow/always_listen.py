@@ -219,6 +219,8 @@ class AlwaysListen:
             self._record_start_time = now
             self._record_buffer.clear()
 
+            # 감지 후 모델 리셋 (잔류 점수 제거)
+            self._oww_model.reset()
             print(f"[AlwaysListen] 웨이크 워드 감지! (점수: {score:.3f})")
             threading.Thread(target=self._fire_wake, daemon=True).start()
 
@@ -239,11 +241,14 @@ class AlwaysListen:
         else:
             self._silence_duration += block_duration
             if self._silence_duration >= self._silence_end:
-                # 녹음 종료
+                # 녹음 종료 → 웨이크 워드 대기로 복귀
                 self._state = _STATE_IDLE
                 recorded = np.concatenate(self._record_buffer)
                 self._record_buffer.clear()
                 self._silence_duration = 0.0
+                # openWakeWord 내부 상태 리셋 (이전 감지 점수 잔류 방지)
+                if self._oww_model is not None:
+                    self._oww_model.reset()
 
                 print(f"[AlwaysListen] 녹음 종료. ({len(recorded) / self.sample_rate:.1f}초)")
                 threading.Thread(
