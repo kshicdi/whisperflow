@@ -2114,45 +2114,68 @@
         const p = particles[i];
         const t = animTime;
 
+        const level = currentAudioLevel;
+
         switch (currentState) {
           case 'idle': {
-            // Gentle orbit — particles gathered, slow rotation
-            const a = p.baseAngle + t * p.speed * 0.3;
-            const r = p.baseRadius * 0.8 + Math.sin(t * 0.5 + p.phase) * 8;
-            p.x += (cx + Math.cos(a) * r - p.x) * 0.03;
-            p.y += (cy + Math.sin(a) * r - p.y) * 0.03;
+            // Gentle breathing orbit — alive but calm
+            const breathe = Math.sin(t * 0.8 + p.phase) * 0.15 + 1.0;
+            const drift = Math.sin(t * 0.3 + i * 0.1) * 5;
+            const a = p.baseAngle + t * p.speed * 0.25;
+            const r = p.baseRadius * 0.7 * breathe + drift;
+            const tx = cx + Math.cos(a) * r;
+            const ty = cy + Math.sin(a) * r;
+            p.x += (tx - p.x) * 0.02;
+            p.y += (ty - p.y) * 0.02;
+            // Subtle shimmer
+            p.x += Math.sin(t * 2 + p.phase * 3) * 0.3;
+            p.y += Math.cos(t * 1.5 + p.phase * 2) * 0.3;
             break;
           }
           case 'recording': {
-            // Expand outward — active, chaotic
-            const a = p.baseAngle + t * p.speed * 1.5;
-            const expand = p.baseRadius * 1.6 + Math.sin(t * 3 + p.phase) * 30 + currentAudioLevel * 50;
-            const tx = cx + Math.cos(a) * expand;
-            const ty = cy + Math.sin(a) * expand;
-            p.x += (tx - p.x) * 0.06;
-            p.y += (ty - p.y) * 0.06;
-            // Add noise
-            p.x += (Math.random() - 0.5) * 2;
-            p.y += (Math.random() - 0.5) * 2;
+            // EXPLOSIVE — audio-reactive outward burst
+            const audioBoost = level * 120;
+            const chaos = Math.sin(t * 8 + i * 2.7) * (10 + level * 30);
+            const spinSpeed = 2.5 + level * 3;
+            const a = p.baseAngle + t * p.speed * spinSpeed;
+            const baseExpand = p.baseRadius * 1.8 + audioBoost;
+            const wave = Math.sin(t * 5 + p.phase) * (20 + level * 40);
+            const r = baseExpand + wave + chaos;
+            const tx = cx + Math.cos(a) * r;
+            const ty = cy + Math.sin(a) * r;
+            p.x += (tx - p.x) * 0.08;
+            p.y += (ty - p.y) * 0.08;
+            // Heavy noise — particles jitter with audio
+            const noiseAmp = 3 + level * 8;
+            p.x += (Math.random() - 0.5) * noiseAmp;
+            p.y += (Math.random() - 0.5) * noiseAmp;
             break;
           }
           case 'processing':
           case 'thinking': {
-            // Spiral inward/outward — breathing
-            const breathe = Math.sin(t * 1.2) * 0.3 + 1.0;
-            const a = p.baseAngle + t * p.speed * 0.8;
-            const r = p.baseRadius * breathe + Math.sin(t * 2 + p.phase) * 12;
-            p.x += (cx + Math.cos(a) * r - p.x) * 0.04;
-            p.y += (cy + Math.sin(a) * r - p.y) * 0.04;
+            // Spiral orbit — contemplative, flowing
+            const spiral = Math.sin(t * 1.5 + p.phase) * 0.3 + 1.0;
+            const a = p.baseAngle + t * p.speed * 0.7 + Math.sin(t * 0.5) * 0.3;
+            const r = p.baseRadius * spiral + Math.sin(t * 2.5 + p.phase) * 15;
+            p.x += (cx + Math.cos(a) * r - p.x) * 0.035;
+            p.y += (cy + Math.sin(a) * r - p.y) * 0.035;
             break;
           }
           case 'tts_playing': {
-            // Rhythmic pulse — expand/contract with beat
-            const beat = Math.sin(t * 4) * 0.4 + 1.0;
-            const a = p.baseAngle + t * p.speed * 0.6;
-            const r = p.baseRadius * beat + Math.sin(t * 2 + p.phase * 2) * 15;
-            p.x += (cx + Math.cos(a) * r - p.x) * 0.05;
-            p.y += (cy + Math.sin(a) * r - p.y) * 0.05;
+            // HEARTBEAT PULSE — dramatic expand/contract
+            const heartbeat = Math.pow(Math.sin(t * 3.5), 2) * 0.8;
+            const secondPulse = Math.pow(Math.sin(t * 3.5 + 0.4), 2) * 0.3;
+            const pulse = heartbeat + secondPulse;
+            const a = p.baseAngle + t * p.speed * 0.5 + pulse * 0.2;
+            const baseR = p.baseRadius * 0.9;
+            const r = baseR + pulse * 60 + Math.sin(t * 2 + p.phase) * 10;
+            const tx = cx + Math.cos(a) * r;
+            const ty = cy + Math.sin(a) * r;
+            p.x += (tx - p.x) * 0.07;
+            p.y += (ty - p.y) * 0.07;
+            // Subtle shimmer during speech
+            p.x += Math.sin(t * 6 + p.phase) * pulse * 2;
+            p.y += Math.cos(t * 5 + p.phase) * pulse * 2;
             break;
           }
         }
@@ -2162,15 +2185,19 @@
         p.y = Math.max(5, Math.min(495, p.y));
       }
 
+      // Dynamic connection distance based on state
+      const connDist = currentState === 'recording' ? 80 : currentState === 'tts_playing' ? 70 : CONNECTION_DIST;
+      const lineFlicker = currentState === 'recording' ? (Math.random() * 0.5 + 0.5) : 1;
+
       // Draw connections
-      pCtx.lineWidth = 0.5;
+      pCtx.lineWidth = currentState === 'tts_playing' ? 0.8 : 0.5;
       for (let i = 0; i < PARTICLE_COUNT; i++) {
         for (let j = i + 1; j < PARTICLE_COUNT; j++) {
           const dx = particles[i].x - particles[j].x;
           const dy = particles[i].y - particles[j].y;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < CONNECTION_DIST) {
-            const alpha = (1 - dist / CONNECTION_DIST) * col.line;
+          if (dist < connDist) {
+            const alpha = (1 - dist / connDist) * col.line * lineFlicker;
             pCtx.strokeStyle = `rgba(${col.r},${col.g},${col.b},${alpha})`;
             pCtx.beginPath();
             pCtx.moveTo(particles[i].x, particles[i].y);
@@ -2180,15 +2207,37 @@
         }
       }
 
-      // Draw particles
+      // Draw particles with state-dependent glow
       for (let i = 0; i < PARTICLE_COUNT; i++) {
         const p = particles[i];
-        const glow = currentState === 'recording' ? 0.9 : 0.6;
+        let glow, sz;
+        switch (currentState) {
+          case 'recording':
+            glow = 0.7 + currentAudioLevel * 0.3;
+            sz = p.size * (1 + currentAudioLevel * 0.8);
+            // Bright core glow
+            pCtx.shadowBlur = 4 + currentAudioLevel * 8;
+            pCtx.shadowColor = `rgba(${col.r},${col.g},${col.b},0.5)`;
+            break;
+          case 'tts_playing':
+            const pulse = Math.pow(Math.sin(animTime * 3.5), 2);
+            glow = 0.5 + pulse * 0.5;
+            sz = p.size * (1 + pulse * 0.4);
+            pCtx.shadowBlur = 3 + pulse * 6;
+            pCtx.shadowColor = `rgba(${col.r},${col.g},${col.b},0.4)`;
+            break;
+          default:
+            glow = 0.5;
+            sz = p.size;
+            pCtx.shadowBlur = 2;
+            pCtx.shadowColor = `rgba(${col.r},${col.g},${col.b},0.2)`;
+        }
         pCtx.fillStyle = `rgba(${col.r},${col.g},${col.b},${glow})`;
         pCtx.beginPath();
-        pCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        pCtx.arc(p.x, p.y, sz, 0, Math.PI * 2);
         pCtx.fill();
       }
+      pCtx.shadowBlur = 0;
 
       // Audio level display
       valAudioLevel.textContent = currentAudioLevel.toFixed(2);
