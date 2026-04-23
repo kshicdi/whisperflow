@@ -20,6 +20,9 @@ class AppLauncher:
         '디스코드': 'Discord',
         '텔레그램': 'Telegram',
         '줌': 'zoom.us',
+        '음악': 'Music',
+        '애플뮤직': 'Music',
+        '뮤직': 'Music',
         '유튜브': None,  # URL로 처리
         '아마존': None,
         '쿠팡': None,
@@ -40,25 +43,41 @@ class AppLauncher:
     }
 
     @classmethod
-    def launch_app(cls, app_name: str) -> bool:
+    def _move_to_secondary_monitor(cls, app_name: str) -> None:
+        """앱 창을 보조 모니터로 이동"""
+        import time
+        time.sleep(0.5)
+        try:
+            subprocess.run(["osascript", "-e", f'''
+                tell application "{app_name}"
+                    activate
+                    delay 0.3
+                    set bounds of front window to {{-1920, 0, 0, 1080}}
+                end tell
+            '''], capture_output=True, timeout=5)
+        except Exception:
+            pass
+
+    @classmethod
+    def launch_app(cls, app_name: str, secondary_monitor: bool = True) -> bool:
         """앱 실행 또는 포커스"""
         try:
             subprocess.run(["open", "-a", app_name], check=True, capture_output=True)
+            if secondary_monitor:
+                cls._move_to_secondary_monitor(app_name)
             return True
         except subprocess.CalledProcessError:
             return False
 
     @classmethod
     def open_url(cls, url: str) -> bool:
-        """Chrome에서 URL 열기"""
+        """Chrome에서 URL 열기 (보조 모니터, 신규 창)"""
         try:
-            script = f'tell application "Google Chrome" to open location "{url}"'
-            subprocess.run(["osascript", "-e", script], check=True, capture_output=True)
-            # Chrome 활성화
-            subprocess.run(["open", "-a", "Google Chrome"], capture_output=True)
+            subprocess.run(["open", "-na", "Google Chrome", "--args", "--new-window", url],
+                          check=True, capture_output=True)
+            cls._move_to_secondary_monitor("Google Chrome")
             return True
         except subprocess.CalledProcessError:
-            # fallback: 기본 브라우저로 열기
             subprocess.run(["open", url], capture_output=True)
             return True
 
@@ -161,12 +180,12 @@ class AppLauncher:
         text_lower = text.lower()
 
         # 카카오톡 메시지 패턴 체크
-        # "카카오톡/카톡 [이름]에게 [메시지] 보내줘/전해줘"
-        kakao_pattern = re.search(r'(?:카카오톡|카톡)\s+(.+?)(?:에게|한테)\s+(.+?)(?:\s*보내|전해|라고)', text)
+        # "카카오톡/카톡에서 [이름]에게 [메시지] 보내줘/전해줘/문자"
+        kakao_pattern = re.search(r'(?:카카오톡|카톡)(?:에서)?\s+(.+?)(?:에게|한테)\s+(.+?)(?:\s*(?:보내|전해|라고|발송|문자))', text)
         if kakao_pattern:
             friend = kakao_pattern.group(1).strip()
             message = kakao_pattern.group(2).strip()
-            result = cls.send_kakao_message(friend, message, auto_send=False)
+            result = cls.send_kakao_message(friend, message, auto_send=True)
             return result
 
         # 유튜브 검색/재생 패턴: "유튜브에서 XX 검색/틀어/재생"
