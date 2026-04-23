@@ -44,11 +44,19 @@ class AppLauncher:
 
     @classmethod
     def _play_preset_sound(cls, filename: str) -> None:
-        """미리 저장된 음성 파일 재생"""
+        """미리 저장된 음성 파일 재생 + JARVIS UI speaking 상태 전환"""
         sounds_dir = os.path.join(os.path.dirname(__file__), "static", "sounds")
+        jarvis_send = os.path.join(os.path.dirname(__file__), "jarvis_send.py")
+        venv_python = os.path.join(os.path.dirname(__file__), "..", "venv", "bin", "python")
         path = os.path.join(sounds_dir, filename)
-        if os.path.exists(path):
-            subprocess.Popen(["afplay", "-r", "1.4", path])
+        if os.path.exists(path) and os.path.exists(jarvis_send):
+            # JARVIS UI: speaking 상태
+            subprocess.run([venv_python, jarvis_send, "state", "tts_playing"], capture_output=True)
+            # 음성 재생 (완료 대기)
+            p = subprocess.Popen(["afplay", "-r", "1.4", path])
+            p.wait()
+            # JARVIS UI: idle 상태
+            subprocess.run([venv_python, jarvis_send, "state", "idle"], capture_output=True)
 
     @classmethod
     def _move_to_secondary_monitor(cls, app_name: str) -> None:
@@ -210,8 +218,9 @@ class AppLauncher:
 
         # 음악 틀어줘 → Apple Music 창 열기 + 음성 응답 (실제 재생은 안 함)
         if ('음악' in text_lower or '뮤직' in text_lower) and has_action:
+            import threading
             cls.launch_app('Music', move_window=False)
-            cls._play_preset_sound('music_play.wav')
+            threading.Thread(target=cls._play_preset_sound, args=('music_play.wav',), daemon=True).start()
             return {"success": True, "action": "launch_app_voice", "target": "음악"}
 
         if has_action:
