@@ -600,6 +600,7 @@ class WhisperFlowApp(rumps.App):
                 if self.always_listen is not None:
                     self.always_listen.stop()
                 self.always_listen = AlwaysListen(
+                    on_double_clap=self._on_double_clap,
                     on_wake=self._on_wake_word,
                     on_speech_detected=self._on_speech_detected
                 )
@@ -608,6 +609,12 @@ class WhisperFlowApp(rumps.App):
 
             log("[촬영] JARVIS 촬영 모드 ON (박수 2번으로 시스템 온라인)")
             TextOutput.show_notification("WhisperFlow", "JARVIS 촬영 모드 ON")
+
+    def _on_double_clap(self) -> None:
+        """박수 2번 감지 → 시스템 온라인"""
+        log("[상시청취] 더블 클랩 감지! → 시스템 온라인")
+        from . import filming_scenarios
+        filming_scenarios._handle_system_online("")
 
     def _on_wake_word(self) -> None:
         """웨이크 워드 감지 → JARVIS UI 리스닝 상태"""

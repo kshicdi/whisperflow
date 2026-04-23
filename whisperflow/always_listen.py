@@ -10,8 +10,9 @@ from openwakeword.model import Model
 
 
 # 청취 상태 상수
-_STATE_IDLE = "idle"      # 웨이크 워드 대기 중
-_STATE_SPEECH = "speech"  # 웨이크 워드 감지 후 녹음 중
+_STATE_BOOT_WAIT = "boot_wait"  # 박수 2번 대기 (시스템 온라인 전)
+_STATE_IDLE = "idle"            # 웨이크 워드 대기 중
+_STATE_SPEECH = "speech"        # 웨이크 워드 감지 후 녹음 중
 
 
 class AlwaysListen:
@@ -27,8 +28,10 @@ class AlwaysListen:
 
     def __init__(
         self,
+        on_double_clap: Optional[Callable[[], None]] = None,
         on_wake: Optional[Callable[[], None]] = None,
         on_speech_detected: Optional[Callable[[np.ndarray, int], None]] = None,
+        clap_threshold: float = 0.025,
         wake_threshold: float = 0.05,
         speech_threshold: float = 0.008,
         sample_rate: int = 16000,
@@ -42,8 +45,10 @@ class AlwaysListen:
             speech_threshold: 음성/묵음 판별 진폭 임계값 (0~1, float32 기준)
             sample_rate: 샘플레이트 (openWakeWord는 16kHz 필요)
         """
+        self.on_double_clap = on_double_clap
         self.on_wake = on_wake
         self.on_speech_detected = on_speech_detected
+        self.clap_threshold = clap_threshold
         self.wake_threshold = wake_threshold
         self.speech_threshold = speech_threshold
         self.sample_rate = sample_rate
@@ -53,8 +58,13 @@ class AlwaysListen:
         self._stream: Optional[sd.InputStream] = None
         self._lock = threading.Lock()
 
-        # --- 상태 ---
-        self._state: str = _STATE_IDLE
+        # --- 상태 (박수 대기부터 시작) ---
+        self._state: str = _STATE_BOOT_WAIT
+
+        # --- 박수 감지 ---
+        self._clap_prev_quiet: bool = True
+        self._clap_last_peak: float = 0.0
+        self._clap_fired: bool = False
 
         # --- 웨이크 워드 감지 쿨다운 ---
         # 감지 후 5초간 재감지 방지
@@ -92,8 +102,9 @@ class AlwaysListen:
         print("[AlwaysListen] 모델 로드 완료.")
 
         self._running = True
-        self._state = _STATE_IDLE
+        self._state = _STATE_BOOT_WAIT
         self._last_wake_time = 0.0
+        self._clap_fired = False
 
         self._stream = sd.InputStream(
             samplerate=self.sample_rate,
@@ -140,10 +151,43 @@ class AlwaysListen:
         audio_int16 = (audio_amplified * 32767).astype(np.int16)
 
         with self._lock:
-            if self._state == _STATE_IDLE:
+            if self._state == _STATE_BOOT_WAIT:
+                self._process_clap(audio_raw, block_duration)
+            elif self._state == _STATE_IDLE:
                 self._process_wake(audio_int16, audio_raw)
             elif self._state == _STATE_SPEECH:
                 self._process_vad(audio_raw, block_duration)
+
+    def _process_clap(self, audio: np.ndarray, block_duration: float) -> None:
+        """박수(더블 클랩) 감지 → 시스템 온라인 후 IDLE 전환."""
+        if self._clap_fired:
+            return
+
+        amplitude = float(np.max(np.abs(audio)))
+        now = time.monotonic()
+        is_loud = amplitude >= self.clap_threshold
+
+        if is_loud and self._clap_prev_quiet:
+            # 피크 시작
+            gap = now - self._clap_last_peak
+            if self._clap_last_peak > 0 and 0.15 <= gap <= 1.0:
+                # 더블 클랩!
+                self._clap_fired = True
+                self._state = _STATE_IDLE  # 박수 후 웨이크 워드 대기로 전환
+                print(f"[AlwaysListen] 더블 클랩 감지! → 웨이크 워드 대기로 전환")
+                threading.Thread(target=self._fire_clap, daemon=True).start()
+            else:
+                self._clap_last_peak = now
+
+        self._clap_prev_quiet = not is_loud
+
+    def _fire_clap(self) -> None:
+        """더블 클랩 콜백 호출."""
+        if self.on_double_clap:
+            try:
+                self.on_double_clap()
+            except Exception as e:
+                print(f"[AlwaysListen] on_double_clap 오류: {e}")
 
     def _process_wake(self, audio_int16: np.ndarray, audio_f32: np.ndarray) -> None:
         """openWakeWord로 웨이크 워드 감지."""
