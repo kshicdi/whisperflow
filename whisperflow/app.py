@@ -616,7 +616,16 @@ class WhisperFlowApp(rumps.App):
         log(f"[변환] 완료 - 텍스트: {text}")
         self._set_title_safe(self.ICON_IDLE)
         if text:
-            # 텍스트가 있으면 THINKING 상태로 (Claude가 처리할 때까지 유지)
+            # 고정 명령어 먼저 체크 (LLM 거치지 않고 즉시 실행)
+            from .app_launcher import AppLauncher
+            cmd_result = AppLauncher.handle_command(text)
+            if cmd_result["success"]:
+                log(f"[직접실행] {cmd_result['action']}: {cmd_result['target']}")
+                self._ws_broadcast("broadcast_state", "idle")
+                self._ws_broadcast("broadcast_transcript", text)
+                return
+
+            # 매칭 안 되면 Claude Code로 전달
             self._ws_broadcast("broadcast_state", "thinking")
             self._ws_broadcast("broadcast_transcript", text)
         else:
