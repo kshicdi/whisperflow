@@ -290,13 +290,9 @@ class AppLauncher:
         jarvis_send = os.path.join(os.path.dirname(__file__), "jarvis_send.py")
         venv_python = os.path.join(os.path.dirname(__file__), "..", "venv", "bin", "python")
 
-        # 0. JARVIS UI를 별도 Chrome 프로필 + 앱 모드 + 전체화면으로 열기
-        subprocess.Popen([
-            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-            "--app=http://localhost:8767",
-            "--user-data-dir=" + os.path.expanduser("~/.chrome-jarvis-ui"),
-            "--start-fullscreen"
-        ])
+        # 0. JARVIS UI를 기본 브라우저로 메인 화면에서 열기
+        import webbrowser
+        webbrowser.open("http://localhost:8767")
         time.sleep(3)
 
         def _send(msg_type, value):
