@@ -616,13 +616,12 @@ class WhisperFlowApp(rumps.App):
         log(f"[변환] 완료 - 텍스트: {text}")
         self._set_title_safe(self.ICON_IDLE)
         if text:
-            # 촬영 모드일 때만 고정 명령어 체크 (LLM 바이패스)
+            # 촬영 모드일 때만 촬영 시나리오 체크 (LLM 바이패스)
             jarvis_roleplay = Path(self.JARVIS_ROLEPLAY_FILE).exists()
             if jarvis_roleplay:
-                from .app_launcher import AppLauncher
-                cmd_result = AppLauncher.handle_command(text)
-                if cmd_result["success"]:
-                    log(f"[직접실행] {cmd_result['action']}: {cmd_result['target']}")
+                from . import filming_scenarios
+                if filming_scenarios.handle(text):
+                    log(f"[촬영시나리오] 매칭: {text[:50]}")
                     self._ws_broadcast("broadcast_state", "idle")
                     return
 

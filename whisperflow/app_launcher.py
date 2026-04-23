@@ -42,37 +42,56 @@ class AppLauncher:
         '인스타': 'https://www.instagram.com',
     }
 
-    # 미리 저장된 음성 파일 → 표시할 텍스트 매핑
-    SOUND_TEXT_MAP = {
-        'music_play.wav': '네, 음악을 재생하겠습니다, sir.',
-        'welcome_home.wav': 'Welcome home, sir.',
-        'system_online_final.wav': 'All systems are fully operational, sir! What shall I prepare for you today?',
+    # 명령 응답 텍스트 — 텍스트만 등록하면 TTS 자동 생성
+    RESPONSE_MAP = {
+        'music_play': '네, 음악을 재생하겠습니다, sir.',
+        'welcome_home': 'Welcome home, sir.',
+        'system_online_final': 'All systems are fully operational, sir! What shall I prepare for you today?',
+        'kakao_sent': '카카오톡으로 요청하신 메시지를 전달했습니다, sir.',
+        'chrome_open': '크롬을 실행하겠습니다, sir.',
+        'youtube_open': '유튜브를 열겠습니다, sir.',
     }
 
     @classmethod
-    def _play_preset_sound(cls, filename: str) -> None:
-        """미리 저장된 음성 파일 재생 + JARVIS UI speaking 상태 + 텍스트 표시"""
-        sounds_dir = os.path.join(os.path.dirname(__file__), "static", "sounds")
+    def _jarvis_send(cls, msg_type, value):
         jarvis_send = os.path.join(os.path.dirname(__file__), "jarvis_send.py")
         venv_python = os.path.join(os.path.dirname(__file__), "..", "venv", "bin", "python")
-        path = os.path.join(sounds_dir, filename)
+        if os.path.exists(jarvis_send):
+            subprocess.run([venv_python, jarvis_send, msg_type, value], capture_output=True)
 
-        def _send(msg_type, value):
-            if os.path.exists(jarvis_send):
-                subprocess.run([venv_python, jarvis_send, msg_type, value], capture_output=True)
+    @classmethod
+    def _speak_response(cls, response_key: str) -> None:
+        """응답 텍스트로 음성 재생 + JARVIS UI 텍스트 표시 + speaking 파형
+        TTS 파일이 없으면 자동 생성"""
+        text = cls.RESPONSE_MAP.get(response_key, '')
+        if not text:
+            return
+
+        sounds_dir = os.path.join(os.path.dirname(__file__), "static", "sounds")
+        os.makedirs(sounds_dir, exist_ok=True)
+        path = os.path.join(sounds_dir, f'{response_key}.wav')
+
+        # TTS 파일 없으면 자동 생성
+        if not os.path.exists(path):
+            try:
+                import urllib.request, json
+                # 자연스러운 발음을 위해 긴 맥락으로 생성
+                full_text = f'안녕하세요 자비스입니다. {text}'
+                data = json.dumps({'text': full_text, 'voice': 'clone:jarvis', 'speed': 1.0}).encode()
+                req = urllib.request.Request('http://localhost:9093/generate', data=data,
+                                           headers={'Content-Type': 'application/json'})
+                resp = urllib.request.urlopen(req, timeout=30)
+                with open(path, 'wb') as f:
+                    f.write(resp.read())
+            except Exception:
+                return
 
         if os.path.exists(path):
-            # JARVIS UI: speaking 상태
-            _send("state", "tts_playing")
-            # JARVIS UI: 텍스트 표시
-            display_text = cls.SOUND_TEXT_MAP.get(filename, '')
-            if display_text:
-                _send("output", display_text)
-            # 음성 재생 (완료 대기)
+            cls._jarvis_send("state", "tts_playing")
+            cls._jarvis_send("output", text)
             p = subprocess.Popen(["afplay", "-r", "1.4", path])
             p.wait()
-            # JARVIS UI: idle 상태
-            _send("state", "idle")
+            cls._jarvis_send("state", "idle")
 
     @classmethod
     def _move_to_secondary_monitor(cls, app_name: str) -> None:
