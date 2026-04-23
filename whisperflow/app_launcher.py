@@ -76,7 +76,7 @@ class AppLauncher:
             try:
                 import urllib.request, json
                 # 자연스러운 발음을 위해 긴 맥락으로 생성
-                full_text = f'안녕하세요 자비스입니다. {text}'
+                full_text = text
                 data = json.dumps({'text': full_text, 'voice': 'clone:jarvis', 'speed': 1.0}).encode()
                 req = urllib.request.Request('http://localhost:9093/generate', data=data,
                                            headers={'Content-Type': 'application/json'})
