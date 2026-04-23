@@ -29,9 +29,9 @@ class AlwaysListen:
         self,
         on_double_clap: Optional[Callable[[], None]] = None,
         on_speech_detected: Optional[Callable[[np.ndarray, int], None]] = None,
-        clap_threshold: float = 0.5,
-        speech_threshold: float = 0.02,
-        sample_rate: int = 16000,
+        clap_threshold: float = 0.025,
+        speech_threshold: float = 0.008,
+        sample_rate: int = 48000,
     ):
         """
         Args:
@@ -74,9 +74,9 @@ class AlwaysListen:
         self._silence_end = 1.0    # 이 시간 이상 묵음 지속 시 녹음 종료
 
         # 박수 파라미터
-        self._clap_min_gap = 0.2   # 두 번째 클랩까지 최소 간격 (초)
-        self._clap_max_gap = 0.8   # 두 번째 클랩까지 최대 간격 (초)
-        self._clap_max_dur = 0.05  # 클랩 피크의 최대 지속 시간 (50ms)
+        self._clap_min_gap = 0.15  # 두 번째 클랩까지 최소 간격 (초)
+        self._clap_max_gap = 1.0   # 두 번째 클랩까지 최대 간격 (초)
+        self._clap_max_dur = 0.15  # 클랩 피크의 최대 지속 시간 (150ms)
 
     # ------------------------------------------------------------------
     # 공개 인터페이스
