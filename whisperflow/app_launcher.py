@@ -290,24 +290,14 @@ class AppLauncher:
         jarvis_send = os.path.join(os.path.dirname(__file__), "jarvis_send.py")
         venv_python = os.path.join(os.path.dirname(__file__), "..", "venv", "bin", "python")
 
-        # 0. JARVIS UI를 Chrome 앱 모드(주소창 없음) + 전체화면으로 메인 화면에서 열기
+        # 0. JARVIS UI를 별도 Chrome 프로필 + 앱 모드 + 전체화면으로 열기
         subprocess.Popen([
             "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
             "--app=http://localhost:8767",
-            "--new-window"
+            "--user-data-dir=" + os.path.expanduser("~/.chrome-jarvis-ui"),
+            "--start-fullscreen"
         ])
-        time.sleep(2)
-        # 메뉴바에서 전체화면 전환
-        subprocess.run(["osascript", "-e", '''
-            tell application "Google Chrome" to activate
-            delay 0.5
-            tell application "System Events"
-                tell process "Google Chrome"
-                    click menu item "전체화면 열기" of menu "보기" of menu bar 1
-                end tell
-            end tell
-        '''], capture_output=True)
-        time.sleep(2)
+        time.sleep(3)
 
         def _send(msg_type, value):
             if os.path.exists(jarvis_send):
