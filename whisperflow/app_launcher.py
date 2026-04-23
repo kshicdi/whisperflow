@@ -169,6 +169,14 @@ class AppLauncher:
             result = cls.send_kakao_message(friend, message, auto_send=False)
             return result
 
+        # 유튜브 검색/재생 패턴: "유튜브에서 XX 검색/틀어/재생"
+        yt_pattern = re.search(r'유튜브\s*(?:에서|가서|에)?\s*(.+?)(?:\s*(?:검색|틀어|재생|보여|찾아))', text)
+        if yt_pattern:
+            query = yt_pattern.group(1).strip()
+            url = f'https://www.youtube.com/results?search_query={query.replace(" ", "+")}'
+            cls.open_url(url)
+            return {"success": True, "action": "youtube_search", "target": query}
+
         # URL 매핑 체크
         for keyword, url in cls.URL_MAP.items():
             if keyword in text_lower:
