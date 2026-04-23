@@ -1609,19 +1609,8 @@
       </div>
     </div>
 
-    <!-- Central Arc Reactor -->
-    <div class="arc-reactor" id="arcReactor">
-      <div class="reactor-ring outer" id="ringOuter"></div>
-      <div class="reactor-ring mid" id="ringMid"></div>
-      <div class="reactor-ring inner" id="ringInner"></div>
-
-      <!-- Waveform bars around the ring -->
-      <div class="waveform-ring" id="waveform"></div>
-
-      <div class="reactor-core" id="reactorCore">
-        <span class="icon">J</span>
-      </div>
-    </div>
+    <!-- Particle Constellation (replaces Arc Reactor) -->
+    <canvas id="particleCanvas" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:500px;height:500px;z-index:2;pointer-events:none;"></canvas>
 
     <!-- Code Action Panel -->
     <div class="code-panel" id="codePanel">
@@ -1952,19 +1941,13 @@
     //  DOM REFS
     // ============================================================
     const $ = id => document.getElementById(id);
-    const waveformEl = $('waveform');
     const statusText = $('statusText');
-    const arcReactor = $('arcReactor');
     const valAudioLevel = $('valAudioLevel');
     const valDuration = $('valDuration');
     const timeDisplay = $('timeDisplay');
     const conversationLog = $('conversationLog');
     const wsDot = $('wsDot');
     const wsLabel = $('wsLabel');
-    const ringOuter = $('ringOuter');
-    const ringMid = $('ringMid');
-    const ringInner = $('ringInner');
-    const reactorCore = $('reactorCore');
     const micButton = $('micButton');
 
     // ============================================================
@@ -2020,19 +2003,37 @@
     };
 
     // ============================================================
-    //  INIT WAVEFORM BARS
+    //  PARTICLE CONSTELLATION SYSTEM
     // ============================================================
-    for (let i = 0; i < BAR_COUNT; i++) {
-      const bar = document.createElement('div');
-      bar.className = 'waveform-bar';
-      const angle = (i / BAR_COUNT) * 360;
-      bar.dataset.angle = angle;
-      bar.dataset.index = i;
-      bar.style.height = '5px';
-      bar.style.transform = `rotate(${angle}deg) translateY(-${90 + 2}px)`;
-      bar.style.opacity = '0.3';
-      waveformEl.appendChild(bar);
-      bars.push(bar);
+    const pCanvas = $('particleCanvas');
+    const pCtx = pCanvas.getContext('2d');
+    const PARTICLE_COUNT = 250;
+    const CONNECTION_DIST = 60;
+    const particles = [];
+
+    // HiDPI support
+    function resizeParticleCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      pCanvas.width = 500 * dpr;
+      pCanvas.height = 500 * dpr;
+      pCtx.scale(dpr, dpr);
+    }
+    resizeParticleCanvas();
+
+    // Create particles in a circular distribution
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 40 + Math.random() * 80;
+      particles.push({
+        x: 250 + Math.cos(angle) * radius,
+        y: 250 + Math.sin(angle) * radius,
+        baseAngle: angle,
+        baseRadius: radius,
+        vx: 0, vy: 0,
+        size: 0.5 + Math.random() * 1.5,
+        speed: 0.2 + Math.random() * 0.5,
+        phase: Math.random() * Math.PI * 2,
+      });
     }
 
     // ============================================================
@@ -2051,38 +2052,7 @@
       // Status text
       statusText.textContent = t.label;
 
-      // Arc reactor state class
-      arcReactor.className = 'arc-reactor';
-      if (t.labelClass) arcReactor.classList.add(t.labelClass);
-
-      // Ring speeds
-      switch (state) {
-        case 'idle':
-          root.style.setProperty('--ring-speed', '20s');
-          root.style.setProperty('--ring-mid-speed', '15s');
-          root.style.setProperty('--ring-inner-speed', '10s');
-          break;
-        case 'recording':
-          root.style.setProperty('--ring-speed', '10s');
-          root.style.setProperty('--ring-mid-speed', '7s');
-          root.style.setProperty('--ring-inner-speed', '4s');
-          break;
-        case 'processing':
-          root.style.setProperty('--ring-speed', '4s');
-          root.style.setProperty('--ring-mid-speed', '3s');
-          root.style.setProperty('--ring-inner-speed', '2s');
-          break;
-        case 'thinking':
-          root.style.setProperty('--ring-speed', '8s');
-          root.style.setProperty('--ring-mid-speed', '6s');
-          root.style.setProperty('--ring-inner-speed', '4s');
-          break;
-        case 'tts_playing':
-          root.style.setProperty('--ring-speed', '12s');
-          root.style.setProperty('--ring-mid-speed', '9s');
-          root.style.setProperty('--ring-inner-speed', '6s');
-          break;
-      }
+      // Particle system은 currentState를 직접 참조하므로 별도 설정 불필요
 
       // Duration tracking
       if (state === 'recording') {
@@ -2117,73 +2087,110 @@
     }
 
     // ============================================================
-    //  WAVEFORM ANIMATION (requestAnimationFrame)
+    //  PARTICLE ANIMATION (requestAnimationFrame)
     // ============================================================
     let animTime = 0;
 
-    function animateWaveform(timestamp) {
-      animTime = timestamp * 0.001; // seconds
-      // Smooth audio level interpolation
+    // State-dependent colors
+    const PARTICLE_COLORS = {
+      idle:        { r: 0, g: 212, b: 255, line: 0.06 },
+      recording:   { r: 255, g: 80, b: 80, line: 0.12 },
+      processing:  { r: 255, g: 170, b: 30, line: 0.08 },
+      thinking:    { r: 180, g: 130, b: 255, line: 0.08 },
+      tts_playing: { r: 0, g: 230, b: 118, line: 0.1 },
+    };
+
+    function animateParticles(timestamp) {
+      animTime = timestamp * 0.001;
       currentAudioLevel += (targetAudioLevel - currentAudioLevel) * 0.15;
 
-      const level = currentAudioLevel;
+      const cx = 250, cy = 250;
+      const col = PARTICLE_COLORS[currentState] || PARTICLE_COLORS.idle;
 
-      for (let i = 0; i < BAR_COUNT; i++) {
-        const bar = bars[i];
-        const angle = parseFloat(bar.dataset.angle);
-        const rad = angle * Math.PI / 180;
-        let h;
+      pCtx.clearRect(0, 0, 500, 500);
+
+      // Update particles based on state
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        const p = particles[i];
+        const t = animTime;
 
         switch (currentState) {
           case 'idle': {
-            // Gentle sine wave
-            const wave = Math.sin(rad * 3 + animTime * 1.2) * 0.5 + 0.5;
-            const wave2 = Math.sin(rad * 5 - animTime * 0.8) * 0.3 + 0.5;
-            h = 4 + (wave * wave2) * 10;
+            // Gentle orbit — particles gathered, slow rotation
+            const a = p.baseAngle + t * p.speed * 0.3;
+            const r = p.baseRadius * 0.8 + Math.sin(t * 0.5 + p.phase) * 8;
+            p.x += (cx + Math.cos(a) * r - p.x) * 0.03;
+            p.y += (cy + Math.sin(a) * r - p.y) * 0.03;
             break;
           }
           case 'recording': {
-            // React to audio level with randomness
-            const base = 4 + level * 24;
-            const wave = Math.sin(rad * 4 + animTime * 3) * 0.5 + 0.5;
-            const noise = Math.sin(i * 7.3 + animTime * 8) * 0.3 + 0.7;
-            h = base * wave * noise + 3;
+            // Expand outward — active, chaotic
+            const a = p.baseAngle + t * p.speed * 1.5;
+            const expand = p.baseRadius * 1.6 + Math.sin(t * 3 + p.phase) * 30 + currentAudioLevel * 50;
+            const tx = cx + Math.cos(a) * expand;
+            const ty = cy + Math.sin(a) * expand;
+            p.x += (tx - p.x) * 0.06;
+            p.y += (ty - p.y) * 0.06;
+            // Add noise
+            p.x += (Math.random() - 0.5) * 2;
+            p.y += (Math.random() - 0.5) * 2;
             break;
           }
-          case 'processing': {
-            // Rotating loading pattern
-            const sweep = (animTime * 2 + angle / 360) % 1;
-            const pulse = Math.pow(Math.sin(sweep * Math.PI), 3);
-            h = 4 + pulse * 18;
-            break;
-          }
+          case 'processing':
           case 'thinking': {
-            // Pulsing brain-like pattern (slower, deeper)
-            const breathe = Math.sin(animTime * 1.5) * 0.4 + 0.6;
-            const spiral = Math.sin(rad * 2 + animTime * 1.8) * 0.5 + 0.5;
-            const drift = Math.sin(rad * 5 - animTime * 0.6) * 0.3 + 0.5;
-            h = 4 + (breathe * spiral + drift) * 12;
+            // Spiral inward/outward — breathing
+            const breathe = Math.sin(t * 1.2) * 0.3 + 1.0;
+            const a = p.baseAngle + t * p.speed * 0.8;
+            const r = p.baseRadius * breathe + Math.sin(t * 2 + p.phase) * 12;
+            p.x += (cx + Math.cos(a) * r - p.x) * 0.04;
+            p.y += (cy + Math.sin(a) * r - p.y) * 0.04;
             break;
           }
           case 'tts_playing': {
-            // Rhythmic pulsing
-            const beat = Math.sin(animTime * 4) * 0.5 + 0.5;
-            const wave = Math.sin(rad * 2 + animTime * 2) * 0.5 + 0.5;
-            const accent = Math.sin(rad * 6 - animTime * 3) * 0.3 + 0.5;
-            h = 4 + (beat * wave + accent) * 13;
+            // Rhythmic pulse — expand/contract with beat
+            const beat = Math.sin(t * 4) * 0.4 + 1.0;
+            const a = p.baseAngle + t * p.speed * 0.6;
+            const r = p.baseRadius * beat + Math.sin(t * 2 + p.phase * 2) * 15;
+            p.x += (cx + Math.cos(a) * r - p.x) * 0.05;
+            p.y += (cy + Math.sin(a) * r - p.y) * 0.05;
             break;
           }
-          default:
-            h = 5;
         }
 
-        const opacity = 0.25 + (h / 30) * 0.75;
-        bar.style.height = h + 'px';
-        bar.style.transform = `rotate(${angle}deg) translateY(-${90 + h/2}px)`;
-        bar.style.opacity = opacity;
+        // Clamp to canvas
+        p.x = Math.max(5, Math.min(495, p.x));
+        p.y = Math.max(5, Math.min(495, p.y));
       }
 
-      // Audio level value display
+      // Draw connections
+      pCtx.lineWidth = 0.5;
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        for (let j = i + 1; j < PARTICLE_COUNT; j++) {
+          const dx = particles[i].x - particles[j].x;
+          const dy = particles[i].y - particles[j].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < CONNECTION_DIST) {
+            const alpha = (1 - dist / CONNECTION_DIST) * col.line;
+            pCtx.strokeStyle = `rgba(${col.r},${col.g},${col.b},${alpha})`;
+            pCtx.beginPath();
+            pCtx.moveTo(particles[i].x, particles[i].y);
+            pCtx.lineTo(particles[j].x, particles[j].y);
+            pCtx.stroke();
+          }
+        }
+      }
+
+      // Draw particles
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        const p = particles[i];
+        const glow = currentState === 'recording' ? 0.9 : 0.6;
+        pCtx.fillStyle = `rgba(${col.r},${col.g},${col.b},${glow})`;
+        pCtx.beginPath();
+        pCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        pCtx.fill();
+      }
+
+      // Audio level display
       valAudioLevel.textContent = currentAudioLevel.toFixed(2);
 
       // FPS counter
@@ -2194,10 +2201,10 @@
         lastFpsTime = timestamp;
       }
 
-      requestAnimationFrame(animateWaveform);
+      requestAnimationFrame(animateParticles);
     }
 
-    requestAnimationFrame(animateWaveform);
+    requestAnimationFrame(animateParticles);
 
     // ============================================================
     //  REAL-TIME CLOCK
