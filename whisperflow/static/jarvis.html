@@ -1956,6 +1956,12 @@
     let currentState = 'idle';
     let currentAudioLevel = 0;
     let targetAudioLevel = 0;
+    let targetAudioLow = 0;
+    let targetAudioMid = 0;
+    let targetAudioHigh = 0;
+    let currentAudioLow = 0;
+    let currentAudioMid = 0;
+    let currentAudioHigh = 0;
     let ws = null;
     let reconnectTimer = null;
     let recordingStartTime = null;
@@ -2103,6 +2109,9 @@
     function animateParticles(timestamp) {
       animTime = timestamp * 0.001;
       currentAudioLevel += (targetAudioLevel - currentAudioLevel) * 0.15;
+      currentAudioLow += (targetAudioLow - currentAudioLow) * 0.12;
+      currentAudioMid += (targetAudioMid - currentAudioMid) * 0.18;
+      currentAudioHigh += (targetAudioHigh - currentAudioHigh) * 0.2;
 
       const cx = 250, cy = 250;
       const col = PARTICLE_COLORS[currentState] || PARTICLE_COLORS.idle;
@@ -2133,20 +2142,21 @@
             break;
           }
           case 'recording': {
-            // Smooth audio-reactive expansion
-            const audioBoost = level * 40;
-            const a = p.baseAngle + t * p.speed * (0.8 + level * 0.5);
-            const baseExpand = p.baseRadius * 1.1 + audioBoost;
-            const wave = Math.sin(t * 2 + p.phase) * (5 + level * 12);
-            const r = baseExpand + wave;
+            // 3밴드 음성 반응: 저음=확산, 중음=회전, 고음=떨림
+            const bassExpand = currentAudioLow * 50;    // 저음 → 바깥으로 확산
+            const midSpin = currentAudioMid * 1.2;      // 중음 → 회전 속도
+            const highJitter = currentAudioHigh * 2.5;   // 고음 → 미세 떨림
+            const a = p.baseAngle + t * p.speed * (0.6 + midSpin);
+            const baseR = p.baseRadius * 1.0 + bassExpand;
+            const wave = Math.sin(t * 2.5 + p.phase) * (3 + currentAudioMid * 10);
+            const r = baseR + wave;
             const tx = cx + Math.cos(a) * r;
             const ty = cy + Math.sin(a) * r;
-            p.x += (tx - p.x) * 0.04;
-            p.y += (ty - p.y) * 0.04;
-            // Gentle jitter
-            const noiseAmp = 0.5 + level * 1.5;
-            p.x += (Math.random() - 0.5) * noiseAmp;
-            p.y += (Math.random() - 0.5) * noiseAmp;
+            p.x += (tx - p.x) * 0.05;
+            p.y += (ty - p.y) * 0.05;
+            // 고음 기반 떨림
+            p.x += (Math.random() - 0.5) * highJitter;
+            p.y += (Math.random() - 0.5) * highJitter;
             break;
           }
           case 'processing':
@@ -2652,6 +2662,10 @@
           const v = parseFloat(msg.value);
           if (!isNaN(v)) {
             targetAudioLevel = Math.max(0, Math.min(1, v));
+            // 3밴드 주파수 데이터
+            if (msg.low !== undefined) targetAudioLow = Math.max(0, Math.min(1, msg.low));
+            if (msg.mid !== undefined) targetAudioMid = Math.max(0, Math.min(1, msg.mid));
+            if (msg.high !== undefined) targetAudioHigh = Math.max(0, Math.min(1, msg.high));
             // 녹음 중이면 LISTENING 파형도 업데이트
             if (currentState === 'recording') {
               updateListeningWaveform(v);

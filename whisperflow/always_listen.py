@@ -168,12 +168,37 @@ class AlwaysListen:
                 self._process_wake(audio_int16, audio_raw)
             elif self._state == _STATE_SPEECH:
                 self._process_vad(audio_raw, block_duration)
-                # 녹음 중 오디오 레벨 전송 (파티클 반응용)
+                # 녹음 중 3밴드 오디오 레벨 전송 (파티클 반응용)
                 if self.on_audio_level:
-                    amp = float(np.max(np.abs(audio_raw)))
-                    # 0~1로 정규화 (맥북 마이크 레벨 기준 30배 증폭)
-                    level = min(1.0, amp * 30)
-                    self.on_audio_level(level)
+                    self._send_audio_bands(audio_raw)
+
+    def _send_audio_bands(self, audio: np.ndarray) -> None:
+        """3밴드 주파수 분석 → on_audio_level 콜백으로 전달."""
+        # FFT로 주파수 스펙트럼 추출
+        fft = np.abs(np.fft.rfft(audio))
+        freq_count = len(fft)
+
+        # 16kHz 샘플레이트 기준: 0~8kHz 범위
+        # 저음(0~300Hz), 중음(300~2kHz), 고음(2k~8kHz)
+        low_end = int(freq_count * 300 / 8000)
+        mid_end = int(freq_count * 2000 / 8000)
+
+        low = float(np.mean(fft[:low_end])) if low_end > 0 else 0
+        mid = float(np.mean(fft[low_end:mid_end])) if mid_end > low_end else 0
+        high = float(np.mean(fft[mid_end:])) if freq_count > mid_end else 0
+
+        # 정규화 (맥북 마이크 레벨 기준)
+        gain = 80
+        low = min(1.0, low * gain)
+        mid = min(1.0, mid * gain)
+        high = min(1.0, high * gain * 1.5)  # 고음은 약하므로 더 증폭
+
+        # RMS 전체 레벨도 함께 전달
+        rms = float(np.sqrt(np.mean(audio ** 2)))
+        level = min(1.0, rms * 50)
+
+        # 콜백에 딕셔너리로 전달
+        self.on_audio_level(level, low, mid, high)
 
     def _process_clap(self, audio: np.ndarray, block_duration: float) -> None:
         """박수(더블 클랩) 감지 → 시스템 온라인 후 IDLE 전환."""
