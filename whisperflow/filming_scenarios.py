@@ -81,6 +81,18 @@ def _handle_youtube(text):
     return True
 
 
+def _handle_kakao_open(text):
+    """카카오톡 열어줘 → KakaoTalk 실행 + 음성"""
+    subprocess.run(["osascript", "-e", '''
+        tell application "KakaoTalk"
+            activate
+            reopen
+        end tell
+    '''], capture_output=True)
+    _async_play("kakao_open.wav", "카카오톡을 실행하겠습니다, sir.")
+    return True
+
+
 def _handle_chrome(text):
     """크롬 열어줘 → Chrome + 음성"""
     subprocess.Popen(["open", "-a", "Google Chrome"])
@@ -90,7 +102,7 @@ def _handle_chrome(text):
 
 def _handle_kakao(text):
     """카톡 [이름]에게 [메시지] 보내줘"""
-    pattern = re.search(r'(?:카카오톡|카톡)(?:에서)?\s+(.+?)(?:에게|한테)\s+(.+?)(?:\s*(?:보내|전해|라고|발송|문자))', text)
+    pattern = re.search(r'(?:카카오톡|카톡)(?:에서|에)?\s+(.+?)(?:에게|한테)\s+(.+?)(?:\s*(?:보내|전해|라고|발송|문자))', text)
     if not pattern:
         return False
     friend = pattern.group(1).strip()
@@ -131,6 +143,8 @@ SCENARIOS = [
     (lambda t: '유튜브' in t and any(w in t for w in ['열어', '실행', '켜', '가', '틀어', '검색', '재생']), _handle_youtube),
     # 음악
     (lambda t: ('음악' in t or '뮤직' in t) and any(w in t for w in ['틀어', '실행', '켜', '열어', '재생']), _handle_music),
+    # 카카오톡 앱 실행 (메시지 아닌 단순 열기)
+    (lambda t: ('카카오톡' in t or '카톡' in t) and any(w in t for w in ['열어', '실행', '켜']), _handle_kakao_open),
     # 크롬
     (lambda t: '크롬' in t and any(w in t for w in ['열어', '실행', '켜']), _handle_chrome),
     # 카메라 ON
