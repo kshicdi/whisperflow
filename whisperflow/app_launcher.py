@@ -177,17 +177,22 @@ class AppLauncher:
             cls.open_url(url)
             return {"success": True, "action": "youtube_search", "target": query}
 
-        # URL 매핑 체크
-        for keyword, url in cls.URL_MAP.items():
-            if keyword in text_lower:
-                cls.open_url(url)
-                return {"success": True, "action": "open_url", "target": keyword}
+        # 액션 단어가 있어야만 앱/URL 명령으로 인식
+        action_words = ['열어', '실행', '켜줘', '켜봐', '가줘', '가봐', '보여줘', '틀어', '이동']
+        has_action = any(w in text_lower for w in action_words)
 
-        # 앱 매핑 체크
-        for keyword, app_name in cls.APP_MAP.items():
-            if keyword in text_lower and app_name is not None:
-                success = cls.launch_app(app_name)
-                return {"success": success, "action": "launch_app", "target": keyword}
+        if has_action:
+            # URL 매핑 체크
+            for keyword, url in cls.URL_MAP.items():
+                if keyword in text_lower:
+                    cls.open_url(url)
+                    return {"success": True, "action": "open_url", "target": keyword}
+
+            # 앱 매핑 체크
+            for keyword, app_name in cls.APP_MAP.items():
+                if keyword in text_lower and app_name is not None:
+                    success = cls.launch_app(app_name)
+                    return {"success": success, "action": "launch_app", "target": keyword}
 
         # JARVIS 온라인 명령 (별도 스레드로 실행 — 블로킹 방지)
         if '자비스' in text_lower and ('온라인' in text_lower or '시스템' in text_lower):
