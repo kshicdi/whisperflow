@@ -237,7 +237,7 @@ class AppLauncher:
                     return {"success": success, "action": "launch_app", "target": keyword}
 
         # JARVIS 온라인 명령 (별도 스레드로 실행 — 블로킹 방지)
-        if '자비스' in text_lower and ('온라인' in text_lower or '시스템' in text_lower):
+        if '온라인' in text_lower or ('시스템' in text_lower and '온라인' in text_lower):
             import threading
             threading.Thread(target=cls.jarvis_online, daemon=True).start()
             return {"success": True, "action": "jarvis_online", "target": "system"}
