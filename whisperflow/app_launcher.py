@@ -181,7 +181,38 @@ class AppLauncher:
                 success = cls.launch_app(app_name)
                 return {"success": success, "action": "launch_app", "target": keyword}
 
+        # JARVIS 온라인 명령
+        if '자비스' in text_lower and ('온라인' in text_lower or '시스템' in text_lower):
+            cls.jarvis_online()
+            return {"success": True, "action": "jarvis_online", "target": "system"}
+
         return {"success": False, "action": "unknown", "target": text}
+
+    @classmethod
+    def jarvis_online(cls):
+        """자비스 온라인 시퀀스: welcome → 부팅 UI → 완료 음성"""
+        import time
+
+        sounds_dir = os.path.join(os.path.dirname(__file__), "static", "sounds")
+        welcome = os.path.join(sounds_dir, "welcome_home.wav")
+        system_online = os.path.join(sounds_dir, "system_online_final.wav")
+        jarvis_send = os.path.join(os.path.dirname(__file__), "jarvis_send.py")
+        venv_python = os.path.join(os.path.dirname(__file__), "..", "venv", "bin", "python")
+
+        # 1. Welcome home, sir.
+        if os.path.exists(welcome):
+            subprocess.Popen(["afplay", "-r", "1.4", welcome])
+            time.sleep(2)
+
+        # 2. 부팅 시퀀스 UI
+        if os.path.exists(jarvis_send):
+            subprocess.run([venv_python, jarvis_send, "ui_action", "system_boot"],
+                          capture_output=True)
+
+        # 3. 부팅 UI 완료 대기 후 시스템 완료 음성
+        time.sleep(3.5)
+        if os.path.exists(system_online):
+            subprocess.Popen(["afplay", "-r", "1.4", system_online])
 
 
 if __name__ == "__main__":
