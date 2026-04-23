@@ -142,7 +142,7 @@ SCENARIOS = [
     # 유튜브 (액션 단어 필요)
     (lambda t: '유튜브' in t and any(w in t for w in ['열어', '실행', '켜', '가', '틀어', '검색', '재생']), _handle_youtube),
     # 음악
-    (lambda t: ('음악' in t or '뮤직' in t) and any(w in t for w in ['틀어', '실행', '켜', '열어', '재생']), _handle_music),
+    (lambda t: ('음악' in t or '뮤직' in t) and any(w in t for w in ['틀어', '들어', '실행', '켜', '열어', '재생']), _handle_music),
     # 카카오톡 앱 실행 (메시지 아닌 단순 열기)
     (lambda t: ('카카오톡' in t or '카톡' in t) and any(w in t for w in ['열어', '실행', '켜']), _handle_kakao_open),
     # 크롬
