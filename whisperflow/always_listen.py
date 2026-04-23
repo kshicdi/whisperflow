@@ -32,7 +32,7 @@ class AlwaysListen:
         on_wake: Optional[Callable[[], None]] = None,
         on_speech_detected: Optional[Callable[[np.ndarray, int], None]] = None,
         clap_threshold: float = 0.025,
-        wake_threshold: float = 0.05,
+        wake_threshold: float = 0.15,
         speech_threshold: float = 0.008,
         sample_rate: int = 16000,
     ):
