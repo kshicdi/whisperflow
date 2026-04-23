@@ -42,21 +42,37 @@ class AppLauncher:
         '인스타': 'https://www.instagram.com',
     }
 
+    # 미리 저장된 음성 파일 → 표시할 텍스트 매핑
+    SOUND_TEXT_MAP = {
+        'music_play.wav': '네, 음악을 재생하겠습니다, sir.',
+        'welcome_home.wav': 'Welcome home, sir.',
+        'system_online_final.wav': 'All systems are fully operational, sir! What shall I prepare for you today?',
+    }
+
     @classmethod
     def _play_preset_sound(cls, filename: str) -> None:
-        """미리 저장된 음성 파일 재생 + JARVIS UI speaking 상태 전환"""
+        """미리 저장된 음성 파일 재생 + JARVIS UI speaking 상태 + 텍스트 표시"""
         sounds_dir = os.path.join(os.path.dirname(__file__), "static", "sounds")
         jarvis_send = os.path.join(os.path.dirname(__file__), "jarvis_send.py")
         venv_python = os.path.join(os.path.dirname(__file__), "..", "venv", "bin", "python")
         path = os.path.join(sounds_dir, filename)
-        if os.path.exists(path) and os.path.exists(jarvis_send):
+
+        def _send(msg_type, value):
+            if os.path.exists(jarvis_send):
+                subprocess.run([venv_python, jarvis_send, msg_type, value], capture_output=True)
+
+        if os.path.exists(path):
             # JARVIS UI: speaking 상태
-            subprocess.run([venv_python, jarvis_send, "state", "tts_playing"], capture_output=True)
+            _send("state", "tts_playing")
+            # JARVIS UI: 텍스트 표시
+            display_text = cls.SOUND_TEXT_MAP.get(filename, '')
+            if display_text:
+                _send("output", display_text)
             # 음성 재생 (완료 대기)
             p = subprocess.Popen(["afplay", "-r", "1.4", path])
             p.wait()
             # JARVIS UI: idle 상태
-            subprocess.run([venv_python, jarvis_send, "state", "idle"], capture_output=True)
+            _send("state", "idle")
 
     @classmethod
     def _move_to_secondary_monitor(cls, app_name: str) -> None:
