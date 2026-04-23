@@ -114,7 +114,7 @@ def _handle_camera_off(text):
 # (키워드 조건, 핸들러) — 위에서부터 순서대로 매칭
 SCENARIOS = [
     # 시스템 온라인
-    (lambda t: '온라인' in t, _handle_system_online),
+    (lambda t: '온라인' in t or '올라인' in t or 'online' in t, _handle_system_online),
     # 카카오톡 메시지 (패턴이 복잡하므로 핸들러 내부에서 검증)
     (lambda t: ('카카오톡' in t or '카톡' in t) and ('에게' in t or '한테' in t), _handle_kakao),
     # 유튜브 (액션 단어 필요)
