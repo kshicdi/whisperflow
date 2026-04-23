@@ -217,20 +217,27 @@ class AppLauncher:
         ])
         time.sleep(3)
 
-        # 1. Welcome home, sir.
+        def _send(msg_type, value):
+            if os.path.exists(jarvis_send):
+                subprocess.run([venv_python, jarvis_send, msg_type, value], capture_output=True)
+
+        # 1. Speaking 상태 + Welcome home, sir.
+        _send("state", "tts_playing")
         if os.path.exists(welcome):
             subprocess.Popen(["afplay", "-r", "1.4", welcome])
             time.sleep(2)
+        _send("state", "idle")
 
         # 2. 부팅 시퀀스 UI
-        if os.path.exists(jarvis_send):
-            subprocess.run([venv_python, jarvis_send, "ui_action", "system_boot"],
-                          capture_output=True)
+        _send("ui_action", "system_boot")
 
-        # 3. 부팅 UI 완료 대기 후 시스템 완료 음성
+        # 3. 부팅 UI 완료 대기 후 Speaking 상태 + 시스템 완료 음성
         time.sleep(3.5)
+        _send("state", "tts_playing")
         if os.path.exists(system_online):
-            subprocess.Popen(["afplay", "-r", "1.4", system_online])
+            p = subprocess.Popen(["afplay", "-r", "1.4", system_online])
+            p.wait()  # 음성 끝날 때까지 대기
+        _send("state", "idle")
 
 
 if __name__ == "__main__":

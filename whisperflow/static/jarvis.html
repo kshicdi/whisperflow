@@ -935,6 +935,19 @@
   .boot-screen.fadeout { animation: boot-fadeout 0.5s ease-in forwards; }
   @keyframes boot-fadeout { 0% { opacity: 1; } 100% { opacity: 0; } }
 
+  /* 초기 검은 화면: 부팅 전까지 HUD 숨김 */
+  .hud-container.hidden { opacity: 0; }
+  .hud-container.reveal { animation: hud-reveal 1s ease-out forwards; }
+  @keyframes hud-reveal { 0% { opacity: 0; } 100% { opacity: 1; } }
+
+  /* 부팅 전 대기 화면 (검은 배경 + 파형만 표시) */
+  .boot-standby {
+    position: fixed; inset: 0; z-index: 400;
+    background: #000; display: none;
+    align-items: center; justify-content: center; flex-direction: column;
+  }
+  .boot-standby.active { display: flex; }
+
   /* Shared: Reactor — enhanced with inner spinning rings */
   .boot-reactor {
     width: 80px; height: 80px; border-radius: 50%;
@@ -1474,7 +1487,7 @@
   <div class="vignette"></div>
   <div class="scanlines"></div>
 
-  <div class="hud-container">
+  <div class="hud-container hidden">
     <!-- Corners -->
     <div class="corner tl"></div>
     <div class="corner tr"></div>
@@ -3027,8 +3040,13 @@
       // Phase 6: Fade out (3200ms)
       setTimeout(() => { screen.classList.add('fadeout'); }, 3200);
 
-      // Phase 7: Hide (3700ms)
-      setTimeout(() => { screen.classList.remove('active', 'fadeout'); }, 3700);
+      // Phase 7: Hide + HUD reveal (3700ms)
+      setTimeout(() => {
+        screen.classList.remove('active', 'fadeout');
+        const hud = document.querySelector('.hud-container');
+        hud.classList.remove('hidden');
+        hud.classList.add('reveal');
+      }, 3700);
     }
 
     // ============================================================
