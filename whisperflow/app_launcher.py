@@ -146,26 +146,38 @@ class AppLauncher:
 
     @classmethod
     def handle_command(cls, text: str) -> dict:
-        """음성 명령 텍스트를 파싱해서 앱 실행 또는 URL 열기
+        """음성 명령 텍스트를 파싱해서 앱 실행, URL 열기, 카카오톡 메시지 등
 
         Returns: {"success": bool, "action": str, "target": str}
 
         지원하는 명령 패턴:
         - "크롬 열어줘", "슬랙 실행해", "터미널 켜줘"
         - "유튜브 열어줘", "아마존 가줘", "쿠팡 보여줘"
-        - "유튜브에서 검색해줘" 등
+        - "카카오톡 남소영에게 잘가 보내줘"
+        - "카톡 철수에게 회의 참석해 보내줘"
         """
-        text = text.strip().lower()
+        import re
+        text = text.strip()
+        text_lower = text.lower()
+
+        # 카카오톡 메시지 패턴 체크
+        # "카카오톡/카톡 [이름]에게 [메시지] 보내줘/전해줘"
+        kakao_pattern = re.search(r'(?:카카오톡|카톡)\s+(.+?)(?:에게|한테)\s+(.+?)(?:\s*보내|전해|라고)', text)
+        if kakao_pattern:
+            friend = kakao_pattern.group(1).strip()
+            message = kakao_pattern.group(2).strip()
+            result = cls.send_kakao_message(friend, message, auto_send=False)
+            return result
 
         # URL 매핑 체크
         for keyword, url in cls.URL_MAP.items():
-            if keyword in text:
+            if keyword in text_lower:
                 cls.open_url(url)
                 return {"success": True, "action": "open_url", "target": keyword}
 
         # 앱 매핑 체크
         for keyword, app_name in cls.APP_MAP.items():
-            if keyword in text and app_name is not None:
+            if keyword in text_lower and app_name is not None:
                 success = cls.launch_app(app_name)
                 return {"success": success, "action": "launch_app", "target": keyword}
 
