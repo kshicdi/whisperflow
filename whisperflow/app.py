@@ -605,7 +605,7 @@ class WhisperFlowApp(rumps.App):
                 if self.always_listen is not None:
                     self.always_listen.stop()
                 self.always_listen = AlwaysListen(
-                    on_double_clap=self._on_double_clap,
+                    on_wake=self._on_wake_word,
                     on_speech_detected=self._on_speech_detected
                 )
                 self.always_listen.start()
@@ -614,21 +614,24 @@ class WhisperFlowApp(rumps.App):
             log("[촬영] JARVIS 촬영 모드 ON (박수 2번으로 시스템 온라인)")
             TextOutput.show_notification("WhisperFlow", "JARVIS 촬영 모드 ON")
 
-    def _on_double_clap(self) -> None:
-        """박수 2번 감지 → 시스템 온라인"""
-        log("[상시청취] 더블 클랩 감지! → 시스템 온라인")
-        from . import filming_scenarios
-        filming_scenarios._handle_system_online("")
+    def _on_wake_word(self) -> None:
+        """웨이크 워드 감지 → JARVIS UI 리스닝 상태"""
+        log("[상시청취] 헤이 자비스 감지! → 녹음 대기")
+        self._ws_broadcast("broadcast_state", "recording")
 
     def _on_speech_detected(self, audio_data, sample_rate) -> None:
         """음성 감지 → Whisper 변환 → 시나리오 실행"""
-        log("[상시청취] 음성 감지 → Whisper 변환 시작")
-        import tempfile, soundfile as sf
+        log(f"[상시청취] 음성 감지 → Whisper 변환 시작 ({len(audio_data)/sample_rate:.1f}초)")
+        import tempfile, wave, struct
         try:
-            # 임시 WAV 파일로 저장
             tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
-            sf.write(tmp.name, audio_data, sample_rate)
-            # Whisper로 변환
+            # float32 → int16 WAV 저장
+            audio_int16 = (audio_data * 32767).astype('int16')
+            with wave.open(tmp.name, 'wb') as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(sample_rate)
+                wf.writeframes(audio_int16.tobytes())
             self.transcriber.transcribe_async(tmp.name)
         except Exception as e:
             log(f"[상시청취] 변환 오류: {e}")
