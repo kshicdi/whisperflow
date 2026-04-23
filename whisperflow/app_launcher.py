@@ -68,6 +68,83 @@ class AppLauncher:
         return cls.open_url(extension_url)
 
     @classmethod
+    def send_kakao_message(cls, friend_name: str, message: str, auto_send: bool = False) -> dict:
+        """카카오톡에서 친구를 찾아 메시지 입력 (기본: 전송 직전 멈춤)
+
+        Args:
+            friend_name: 친구 이름
+            message: 보낼 메시지
+            auto_send: True면 자동 전송, False면 입력까지만
+
+        Returns: {"success": bool, "action": str, "target": str}
+        """
+        import time
+        from pynput.keyboard import Controller, Key
+
+        kb = Controller()
+
+        def clipboard_paste(text):
+            proc = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE)
+            proc.communicate(text.encode("utf-8"))
+            time.sleep(0.3)
+            kb.press(Key.cmd)
+            kb.press('v')
+            kb.release('v')
+            kb.release(Key.cmd)
+
+        try:
+            # 1. 카카오톡 열기 + reopen (최소화 복원)
+            subprocess.run(["osascript", "-e", '''
+                tell application "KakaoTalk"
+                    activate
+                    reopen
+                end tell
+            '''], check=True, capture_output=True)
+            time.sleep(2)
+
+            # 2. 검색창 열기 (key code 3 = F)
+            subprocess.run(["osascript", "-e", '''
+                tell application "System Events"
+                    tell process "KakaoTalk"
+                        set frontmost to true
+                        delay 0.5
+                        key code 3 using command down
+                    end tell
+                end tell
+            '''], check=True, capture_output=True)
+            time.sleep(1)
+
+            # 3. 친구 이름 입력 (pynput + 클립보드)
+            clipboard_paste(friend_name)
+            time.sleep(1)
+
+            # 4. 아래 화살표 2번 → Enter (첫 번째 결과 선택 → 채팅방)
+            kb.press(Key.down)
+            kb.release(Key.down)
+            time.sleep(0.2)
+            kb.press(Key.down)
+            kb.release(Key.down)
+            time.sleep(0.3)
+            kb.press(Key.enter)
+            kb.release(Key.enter)
+            time.sleep(1)
+
+            # 5. 메시지 입력 (pynput + 클립보드)
+            clipboard_paste(message)
+
+            # 6. 전송 (auto_send가 True일 때만)
+            if auto_send:
+                time.sleep(0.3)
+                kb.press(Key.enter)
+                kb.release(Key.enter)
+                return {"success": True, "action": "kakao_sent", "target": friend_name}
+
+            return {"success": True, "action": "kakao_ready", "target": friend_name}
+
+        except Exception as e:
+            return {"success": False, "action": "kakao_error", "target": str(e)}
+
+    @classmethod
     def handle_command(cls, text: str) -> dict:
         """음성 명령 텍스트를 파싱해서 앱 실행 또는 URL 열기
 
