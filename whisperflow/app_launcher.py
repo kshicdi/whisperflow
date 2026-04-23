@@ -59,11 +59,11 @@ class AppLauncher:
             pass
 
     @classmethod
-    def launch_app(cls, app_name: str, secondary_monitor: bool = True) -> bool:
-        """앱 실행 또는 포커스"""
+    def launch_app(cls, app_name: str, move_window: bool = False) -> bool:
+        """앱 실행 또는 포커스 (창 이동 없이 그대로)"""
         try:
             subprocess.run(["open", "-a", app_name], check=True, capture_output=True)
-            if secondary_monitor:
+            if move_window:
                 cls._move_to_secondary_monitor(app_name)
             return True
         except subprocess.CalledProcessError:
