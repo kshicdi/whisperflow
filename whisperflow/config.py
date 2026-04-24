@@ -22,6 +22,7 @@ class Config:
     tts_enabled: bool = True  # TTS 기능 활성화
     auto_enter: bool = False  # 붙여넣기 후 자동 엔터
     qwen_tts_speed: float = 1.4  # Qwen TTS 발음 속도
+    tts_say_first: bool = True   # True: say 선행 + Qwen, False: Qwen TTS만 사용
 
     @classmethod
     def get_config_path(cls) -> Path:

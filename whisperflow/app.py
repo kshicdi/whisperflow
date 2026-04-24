@@ -276,6 +276,14 @@ class WhisperFlowApp(rumps.App):
             self.qwen_speed_items[speed] = item
             self.qwen_speed_menu.add(item)
         self.tts_menu.add(self.qwen_speed_menu)
+
+        # 빠른 응답 (say 선행) 토글
+        self.say_first_item = rumps.MenuItem(
+            "빠른 응답 (say 선행)",
+            callback=self._toggle_say_first
+        )
+        self.say_first_item.state = 1 if config.tts_say_first else 0
+        self.tts_menu.add(self.say_first_item)
         self.tts_menu.add(None)  # 구분선
 
         # 드라이브 모드 (전체 읽기) — 최상위 메뉴에 배치
@@ -656,13 +664,17 @@ class WhisperFlowApp(rumps.App):
         sound_path = os.path.join(os.path.dirname(__file__), "static", "sounds", "yes_sir.wav")
         if self.always_listen and os.path.exists(sound_path):
             self.always_listen.mute()
+            log("[상시청취] Yes sir 재생 시작")
             subprocess.Popen(["afplay", sound_path]).wait()
+            log("[상시청취] Yes sir 재생 완료 → 녹음 버퍼 리셋 + unmute")
             time.sleep(0.2)
             # 효과음 재생 중 쌓인 빈 버퍼 제거 + 녹음 타이머 리셋
             self.always_listen.reset_recording()
             self.always_listen.unmute()
+            log(f"[상시청취] unmute 완료. state={self.always_listen._state}, muted={self.always_listen._muted}")
 
         self._ws_broadcast("broadcast_state", "recording")
+        log("[상시청취] 녹음 대기 중... (말씀하세요)")
 
     def _on_speech_detected(self, audio_data, sample_rate) -> None:
         """음성 감지 → 확인 효과음 → Whisper 변환 → 시나리오 실행"""
@@ -804,6 +816,48 @@ class WhisperFlowApp(rumps.App):
 
         TextOutput.show_notification("WhisperFlow", f"Qwen TTS 속도: {new_speed}x")
 
+    def _toggle_say_first(self, sender) -> None:
+        """빠른 응답 (say 선행) 토글"""
+        sender.state = 0 if sender.state else 1
+        config.tts_say_first = bool(sender.state)
+        config.save()
+
+        # Claude Code 훅 설정 파일에 --no-say 플래그 반영
+        self._update_hook_no_say_flag()
+
+        status = "ON (say+Qwen)" if config.tts_say_first else "OFF (Qwen만)"
+        log(f"[설정] 빠른 응답: {status}")
+        TextOutput.show_notification("WhisperFlow", f"빠른 응답: {status}")
+
+    def _update_hook_no_say_flag(self) -> None:
+        """Claude Code hooks 설정에서 --no-say 플래그 업데이트"""
+        settings_path = Path.home() / ".claude" / "settings.json"
+        if not settings_path.exists():
+            return
+        try:
+            import json
+            data = json.loads(settings_path.read_text())
+            hooks = data.get("hooks", {})
+
+            for event_name, event_hooks in hooks.items():
+                if not isinstance(event_hooks, list):
+                    continue
+                for hook in event_hooks:
+                    cmd = hook.get("command", "")
+                    if "qwen_tts_speak.py" not in cmd:
+                        continue
+                    # --no-say 플래그 추가/제거
+                    if config.tts_say_first:
+                        hook["command"] = cmd.replace(" --no-say", "")
+                    else:
+                        if "--no-say" not in cmd:
+                            hook["command"] = cmd + " --no-say"
+
+            settings_path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+            log("[설정] hooks settings.json 업데이트 완료")
+        except Exception as e:
+            log(f"[설정] hooks 업데이트 실패: {e}")
+
     # === TTS 관련 메서드 ===
 
     def _toggle_tts(self, sender) -> None:
@@ -927,8 +981,12 @@ class WhisperFlowApp(rumps.App):
                     import urllib.request
                     r = urllib.request.urlopen('http://localhost:9093/health', timeout=2)
                     if r.status == 200:
+                        cmd = ["/usr/bin/python3", "/Users/USER/.claude/hooks/qwen_tts_speak.py"]
+                        if not config.tts_say_first:
+                            cmd.append("--no-say")
+                        cmd.append(clipboard_text)
                         subprocess.Popen(
-                            ["/usr/bin/python3", "/Users/USER/.claude/hooks/qwen_tts_speak.py", clipboard_text],
+                            cmd,
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL
                         )

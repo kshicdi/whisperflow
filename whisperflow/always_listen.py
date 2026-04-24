@@ -34,7 +34,7 @@ class AlwaysListen:
         on_audio_level: Optional[Callable[[float], None]] = None,
         clap_threshold: float = 0.025,
         wake_threshold: float = 0.5,
-        speech_threshold: float = 0.008,
+        speech_threshold: float = 0.03,
         sample_rate: int = 16000,
         skip_boot_wait: bool = False,
     ):
@@ -78,10 +78,15 @@ class AlwaysListen:
 
         # --- VAD 상태 ---
         self._silence_duration: float = 0.0
-        self._silence_end: float = 1.5      # 묵음 이 시간 이상 지속 시 녹음 종료
+        self._silence_end: float = 2.5      # 묵음 이 시간 이상 지속 시 녹음 종료
         self._min_record_time: float = 3.0  # 최소 녹음 시간 (초) — 이 시간 전에는 묵음 무시
         self._record_start_time: float = 0.0
         self._record_buffer: list[np.ndarray] = []
+
+        # --- 적응형 배경 소음 추적 ---
+        self._noise_floor: float = 0.0      # 현재 추정 배경 소음 레벨
+        self._noise_alpha: float = 0.05     # EMA 업데이트 비율 (작을수록 느리게 적응)
+        self._speech_ratio: float = 2.5     # 배경 소음 대비 이 배수 이상이면 음성
 
         # --- openWakeWord 모델 (start() 호출 시 로드) ---
         self._oww_model: Optional[Model] = None
@@ -134,6 +139,7 @@ class AlwaysListen:
         self._record_buffer.clear()
         self._record_start_time = time.monotonic()
         self._silence_duration = 0.0
+        self._noise_floor = 0.0
 
     def stop(self) -> None:
         """오디오 스트림을 중지한다."""
@@ -266,16 +272,34 @@ class AlwaysListen:
             threading.Thread(target=self._fire_wake, daemon=True).start()
 
     def _process_vad(self, audio: np.ndarray, block_duration: float) -> None:
-        """웨이크 워드 감지 후 VAD로 묵음 구간 검출."""
+        """웨이크 워드 감지 후 적응형 VAD로 묵음 구간 검출."""
         self._record_buffer.append(audio.copy())
 
-        # 최소 녹음 시간 이전에는 묵음 체크 안 함
+        amplitude = float(np.max(np.abs(audio)))
         elapsed = time.monotonic() - self._record_start_time
+
+        # 최소 녹음 시간 이전: 배경 소음 레벨 학습 + 녹음만 진행
         if elapsed < self._min_record_time:
+            # 배경 소음 추정 (EMA)
+            if self._noise_floor == 0:
+                self._noise_floor = amplitude
+            else:
+                self._noise_floor = self._noise_floor * (1 - self._noise_alpha) + amplitude * self._noise_alpha
+            if int(elapsed * 10) % 10 == 0:
+                print(f"[VAD] 소음학습 {elapsed:.1f}s amp={amplitude:.4f} noise={self._noise_floor:.4f}")
             return
 
-        amplitude = float(np.max(np.abs(audio)))
-        is_speech = amplitude >= self.speech_threshold
+        # 적응형 임계값: 배경 소음 × 배수
+        adaptive_threshold = max(self.speech_threshold, self._noise_floor * self._speech_ratio)
+        is_speech = amplitude >= adaptive_threshold
+
+        # 묵음 구간에서 배경 소음 레벨 계속 업데이트
+        if not is_speech:
+            self._noise_floor = self._noise_floor * (1 - self._noise_alpha) + amplitude * self._noise_alpha
+
+        # 디버그: 1초마다 VAD 상태 출력
+        if int(elapsed * 10) % 10 == 0:
+            print(f"[VAD] {elapsed:.1f}s amp={amplitude:.4f} noise={self._noise_floor:.4f} thresh={adaptive_threshold:.4f} speech={is_speech} silence={self._silence_duration:.1f}s")
 
         if is_speech:
             self._silence_duration = 0.0
