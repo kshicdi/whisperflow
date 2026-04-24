@@ -129,6 +129,12 @@ class AlwaysListen:
         """TTS 재생 후 마이크 재개."""
         self._muted = False
 
+    def reset_recording(self) -> None:
+        """녹음 버퍼 비우고 타이머 리셋 (효과음 재생 후 호출)."""
+        self._record_buffer.clear()
+        self._record_start_time = time.monotonic()
+        self._silence_duration = 0.0
+
     def stop(self) -> None:
         """오디오 스트림을 중지한다."""
         self._running = False

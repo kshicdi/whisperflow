@@ -645,33 +645,33 @@ class WhisperFlowApp(rumps.App):
             self.ws_server.broadcast_audio_level(float(level))
 
     def _on_wake_word(self) -> None:
-        """웨이크 워드 감지 → 'Yes, sir' 효과음 + JARVIS UI 리스닝 상태"""
+        """웨이크 워드 감지 → 'Yes, sir' 효과음 + JARVIS UI 리스닝 상태
+
+        이 콜백은 _fire_wake 스레드에서 호출되므로 동기 블로킹 OK.
+        효과음 재생 중 마이크 음소거 → 재생 끝나면 음소거 해제 + 녹음 버퍼/타이머 리셋.
+        """
+        import time
         log("[상시청취] 헤이 자비스 감지! → Yes sir 재생 + 녹음 대기")
-        # "Yes, sir" 효과음 재생 (마이크 음소거 포함)
-        self._play_wake_sound()
+
+        sound_path = os.path.join(os.path.dirname(__file__), "static", "sounds", "yes_sir.wav")
+        if self.always_listen and os.path.exists(sound_path):
+            self.always_listen.mute()
+            subprocess.Popen(["afplay", sound_path]).wait()
+            time.sleep(0.2)
+            # 효과음 재생 중 쌓인 빈 버퍼 제거 + 녹음 타이머 리셋
+            self.always_listen.reset_recording()
+            self.always_listen.unmute()
+
         self._ws_broadcast("broadcast_state", "recording")
 
-    def _play_wake_sound(self) -> None:
-        """웨이크 워드 감지 시 'Yes, sir' 효과음 재생 (별도 스레드, 마이크 음소거)"""
-        import time
-        sound_path = os.path.join(os.path.dirname(__file__), "static", "sounds", "yes_sir.wav")
-        if not os.path.exists(sound_path):
-            return
-        # 스레드 시작 전에 즉시 음소거 (경쟁 조건 방지)
-        if self.always_listen:
-            self.always_listen.mute()
-        def _play():
-            subprocess.Popen(["afplay", "-r", "1.4", sound_path]).wait()
-            time.sleep(0.3)
-            if self.always_listen:
-                self.always_listen.unmute()
-        threading.Thread(target=_play, daemon=True).start()
-
     def _on_speech_detected(self, audio_data, sample_rate) -> None:
-        """음성 감지 → Whisper 변환 → 시나리오 실행"""
+        """음성 감지 → 확인 효과음 → Whisper 변환 → 시나리오 실행"""
         log(f"[상시청취] 음성 감지 → Whisper 변환 시작 ({len(audio_data)/sample_rate:.1f}초)")
-        import tempfile, wave, struct
+        import tempfile, wave
         try:
+            # 녹음 완료 피드백 효과음 재생
+            self._play_processing_sound()
+
             tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
             # float32 → int16 WAV 저장
             audio_int16 = (audio_data * 32767).astype('int16')
@@ -684,6 +684,19 @@ class WhisperFlowApp(rumps.App):
             self.transcriber.transcribe_async(tmp.name)
         except Exception as e:
             log(f"[상시청취] 변환 오류: {e}")
+
+    def _play_processing_sound(self) -> None:
+        """녹음 완료 시 '확인하겠습니다' 효과음 재생 (마이크 음소거 포함)"""
+        import time
+        sound_path = os.path.join(os.path.dirname(__file__), "static", "sounds", "processing.wav")
+        if not os.path.exists(sound_path):
+            return
+        if self.always_listen:
+            self.always_listen.mute()
+        subprocess.Popen(["afplay", sound_path]).wait()
+        time.sleep(0.2)
+        if self.always_listen:
+            self.always_listen.unmute()
 
     def _on_recording_start(self) -> None:
         """녹음 시작 콜백"""
