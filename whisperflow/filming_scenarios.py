@@ -63,7 +63,7 @@ def _handle_system_online(text):
 def _handle_music(text):
     """음악 틀어줘 → Apple Music + 음성"""
     subprocess.Popen(["open", "-a", "Music"])
-    _async_play("music_play.wav", "네, 음악을 재생하겠습니다, sir.")
+    _async_play("music_play.wav", "Playing music, sir.")
     return True
 
 
@@ -77,7 +77,7 @@ def _handle_youtube(text):
     else:
         url = 'https://www.youtube.com'
     subprocess.Popen(["open", "-na", "Google Chrome", "--args", "--new-window", url])
-    _async_play("youtube_open.wav", "네, 유튜브를 열겠습니다, sir.")
+    _async_play("youtube_open.wav", "Opening YouTube, sir.")
     return True
 
 
@@ -89,14 +89,14 @@ def _handle_kakao_open(text):
             reopen
         end tell
     '''], capture_output=True)
-    _async_play("kakao_open.wav", "카카오톡을 실행하겠습니다, sir.")
+    _async_play("kakao_open.wav", "Opening KakaoTalk, sir.")
     return True
 
 
 def _handle_chrome(text):
     """크롬 열어줘 → Chrome + 음성"""
     subprocess.Popen(["open", "-a", "Google Chrome"])
-    _async_play("chrome_open.wav", "크롬을 실행하겠습니다, sir.")
+    _async_play("chrome_open.wav", "Opening Chrome, sir.")
     return True
 
 
@@ -109,7 +109,7 @@ def _handle_kakao(text):
     message = pattern.group(2).strip()
     from .app_launcher import AppLauncher
     AppLauncher.send_kakao_message(friend, message, auto_send=True)
-    _async_play("kakao_sent.wav", "카카오톡으로 요청하신 메시지를 전달했습니다, sir.")
+    _async_play("kakao_sent.wav", "Message sent via KakaoTalk, sir.")
     return True
 
 
@@ -118,14 +118,14 @@ def _handle_camera_on(text):
     from .camera_feed import CameraFeed
     # 글로벌 카메라 인스턴스 관리는 app.py에서 하므로 여기선 신호만
     _send("ui_action", "browser_boot")
-    _async_play("camera_on.wav", "카메라를 활성화하겠습니다, sir.")
+    _async_play("camera_on.wav", "Camera activated, sir.")
     return True
 
 
 def _handle_camera_off(text):
     """카메라 꺼줘"""
     _send("browser_stop", "")
-    _async_play("camera_off.wav", "카메라를 종료하겠습니다, sir.")
+    _async_play("camera_off.wav", "Camera deactivated, sir.")
     return True
 
 
