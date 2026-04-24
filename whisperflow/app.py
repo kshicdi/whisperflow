@@ -669,6 +669,59 @@ class WhisperFlowApp(rumps.App):
         from . import filming_scenarios
         filming_scenarios._always_listen_ref = None
 
+    def _handle_camera_command(self, text: str) -> bool:
+        """카메라 켜기/끄기 명령 키워드 매칭 (드라이브 모드용, LLM 바이패스)"""
+        # 카메라 켜기: "카메라 켜줘", "아이폰 카메라 연결", "맥북 카메라 켜줘" 등
+        if '카메라' in text and any(w in text for w in ['켜', '열어', '활성', '시작', '연결']):
+            # 아이폰 vs 맥북 판별
+            if '아이폰' in text or 'iPhone' in text.lower():
+                camera_index = 1  # iPhone Continuity Camera
+                camera_name = "아이폰"
+            elif '맥북' in text or '맥' in text:
+                camera_index = 0  # MacBook 내장 카메라
+                camera_name = "맥북"
+            else:
+                camera_index = 1  # 기본: 아이폰
+                camera_name = "아이폰"
+
+            if self.camera_feed is not None:
+                self.camera_feed.stop()
+            if CameraFeed is not None:
+                self.camera_feed = CameraFeed(camera_index=camera_index, fps=5)
+                self.camera_feed.start()
+                log(f"[카메라] {camera_name} 카메라 시작 (index={camera_index})")
+                # 효과음 재생
+                sound_path = os.path.join(os.path.dirname(__file__), "static", "sounds", "camera_on.wav")
+                if os.path.exists(sound_path):
+                    if self.always_listen:
+                        self.always_listen.mute()
+                    subprocess.Popen(["afplay", sound_path]).wait()
+                    if self.always_listen:
+                        import time
+                        time.sleep(0.2)
+                        self.always_listen.unmute()
+            return True
+
+        # 카메라 끄기: "카메라 꺼줘", "카메라 종료" 등
+        if '카메라' in text and any(w in text for w in ['꺼', '닫', '종료', '중지']):
+            if self.camera_feed is not None:
+                self.camera_feed.stop()
+                self.camera_feed = None
+                log("[카메라] 카메라 종료")
+                sound_path = os.path.join(os.path.dirname(__file__), "static", "sounds", "camera_off.wav")
+                if os.path.exists(sound_path):
+                    if self.always_listen:
+                        self.always_listen.mute()
+                    subprocess.Popen(["afplay", sound_path]).wait()
+                    if self.always_listen:
+                        import time
+                        time.sleep(0.2)
+                        self.always_listen.unmute()
+                self._ws_broadcast("broadcast_raw", '{"type":"browser_stop"}')
+            return True
+
+        return False
+
     def _on_conversation_end(self) -> None:
         """대화 모드 타임아웃 → 대기 모드 효과음 + idle"""
         import time
@@ -793,6 +846,12 @@ class WhisperFlowApp(rumps.App):
                     log(f"[촬영시나리오] 매칭: {text[:50]}")
                     self._ws_broadcast("broadcast_state", "idle")
                     return
+
+            # 드라이브 모드: 카메라 명령 키워드 매칭 (LLM 바이패스)
+            drive_mode = (Path.home() / ".whisperflow_auto_tts").exists()
+            if drive_mode and self._handle_camera_command(text):
+                self._ws_broadcast("broadcast_state", "idle")
+                return
 
             # 매칭 안 되면 Claude Code로 전달
             self._ws_broadcast("broadcast_state", "thinking")
