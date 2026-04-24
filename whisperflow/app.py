@@ -535,9 +535,12 @@ class WhisperFlowApp(rumps.App):
     # === 모드 비활성화 헬퍼 (상호 배타 처리용) ===
 
     def _deactivate_drive_mode(self) -> None:
-        """드라이브 모드 비활성화 (파일 삭제 + 메뉴 state 동기화)"""
+        """드라이브 모드 비활성화 (파일 삭제 + 상시 청취 정지 + 메뉴 state 동기화)"""
         (Path.home() / ".whisperflow_auto_tts").unlink(missing_ok=True)
         self.auto_tts_item.state = 0
+        # 촬영 모드가 아닌 경우에만 상시 청취 정지
+        if not self.jarvis_shoot_item.state:
+            self._stop_always_listen()
 
     def _deactivate_library_mode(self) -> None:
         """도서관 모드 비활성화 (파일 삭제 + 메뉴 state 동기화)"""
@@ -560,10 +563,9 @@ class WhisperFlowApp(rumps.App):
             self.gesture_control.stop()
             self.gesture_control = None
 
-        # 상시 청취 종료
-        if self.always_listen is not None:
-            self.always_listen.stop()
-            self.always_listen = None
+        # 상시 청취 종료 (드라이브 모드가 아닌 경우에만)
+        if not self.auto_tts_item.state:
+            self._stop_always_listen()
 
         self._ws_broadcast("broadcast_raw", '{"type":"browser_stop"}')
 
@@ -576,11 +578,11 @@ class WhisperFlowApp(rumps.App):
             TextOutput.show_notification("WhisperFlow", "JARVIS 촬영 모드 OFF")
         else:
             # --- ON ---
-            sender.state = True
-
-            # 다른 모드 OFF
+            # 다른 모드 OFF (sender.state 변경 전에 먼저 비활성화)
             self._deactivate_drive_mode()
             self._deactivate_library_mode()
+
+            sender.state = True
 
             # 유튜브 TTS ON
             (Path.home() / ".whisperflow_youtube_tts").touch()
@@ -595,24 +597,41 @@ class WhisperFlowApp(rumps.App):
             #     self.gesture_control = GestureControl(camera_index=1)
             #     self.gesture_control.start()
 
-            # 상시 청취 시작 (웨이크 워드 + 음성 감지)
-            if AlwaysListen is not None:
-                if self.always_listen is not None:
-                    self.always_listen.stop()
-                self.always_listen = AlwaysListen(
-                    on_double_clap=self._on_double_clap,
-                    on_wake=self._on_wake_word,
-                    on_speech_detected=self._on_speech_detected,
-                    on_audio_level=self._on_audio_level
-                )
-                self.always_listen.start()
-                # filming_scenarios에 참조 전달 (TTS 중 마이크 음소거용)
-                from . import filming_scenarios
-                filming_scenarios._always_listen_ref = self.always_listen
+            # 상시 청취 시작 (박수 대기 → 웨이크 워드 → 음성 감지)
+            self._start_always_listen(skip_boot_wait=False)
+            if self.always_listen:
                 log("[촬영] 상시 청취 시작")
 
             log("[촬영] JARVIS 촬영 모드 ON (박수 2번으로 시스템 온라인)")
             TextOutput.show_notification("WhisperFlow", "JARVIS 촬영 모드 ON")
+
+    # === 상시 청취 공통 헬퍼 ===
+
+    def _start_always_listen(self, skip_boot_wait: bool = False) -> None:
+        """상시 청취 시작 (촬영/드라이브 공용)"""
+        if AlwaysListen is None:
+            return
+        if self.always_listen is not None:
+            self.always_listen.stop()
+        self.always_listen = AlwaysListen(
+            on_double_clap=self._on_double_clap,
+            on_wake=self._on_wake_word,
+            on_speech_detected=self._on_speech_detected,
+            on_audio_level=self._on_audio_level,
+            skip_boot_wait=skip_boot_wait,
+        )
+        self.always_listen.start()
+        # filming_scenarios에 참조 전달 (TTS 중 마이크 음소거용)
+        from . import filming_scenarios
+        filming_scenarios._always_listen_ref = self.always_listen
+
+    def _stop_always_listen(self) -> None:
+        """상시 청취 정지"""
+        if self.always_listen is not None:
+            self.always_listen.stop()
+            self.always_listen = None
+        from . import filming_scenarios
+        filming_scenarios._always_listen_ref = None
 
     def _on_double_clap(self) -> None:
         """박수 2번 감지 → 시스템 온라인"""
@@ -626,9 +645,27 @@ class WhisperFlowApp(rumps.App):
             self.ws_server.broadcast_audio_level(float(level))
 
     def _on_wake_word(self) -> None:
-        """웨이크 워드 감지 → JARVIS UI 리스닝 상태"""
-        log("[상시청취] 헤이 자비스 감지! → 녹음 대기")
+        """웨이크 워드 감지 → 'Yes, sir' 효과음 + JARVIS UI 리스닝 상태"""
+        log("[상시청취] 헤이 자비스 감지! → Yes sir 재생 + 녹음 대기")
+        # "Yes, sir" 효과음 재생 (마이크 음소거 포함)
+        self._play_wake_sound()
         self._ws_broadcast("broadcast_state", "recording")
+
+    def _play_wake_sound(self) -> None:
+        """웨이크 워드 감지 시 'Yes, sir' 효과음 재생 (별도 스레드, 마이크 음소거)"""
+        import time
+        sound_path = os.path.join(os.path.dirname(__file__), "static", "sounds", "yes_sir.wav")
+        if not os.path.exists(sound_path):
+            return
+        # 스레드 시작 전에 즉시 음소거 (경쟁 조건 방지)
+        if self.always_listen:
+            self.always_listen.mute()
+        def _play():
+            subprocess.Popen(["afplay", "-r", "1.4", sound_path]).wait()
+            time.sleep(0.3)
+            if self.always_listen:
+                self.always_listen.unmute()
+        threading.Thread(target=_play, daemon=True).start()
 
     def _on_speech_detected(self, audio_data, sample_rate) -> None:
         """음성 감지 → Whisper 변환 → 시나리오 실행"""
@@ -806,10 +843,13 @@ class WhisperFlowApp(rumps.App):
             # 다른 모드 OFF
             self._deactivate_library_mode()
             self._deactivate_jarvis_shoot_mode()
-            log("[TTS] 드라이브 모드 ON")
+            # 상시 청취 시작 (박수 없이 바로 웨이크 워드 대기)
+            self._start_always_listen(skip_boot_wait=True)
+            log("[TTS] 드라이브 모드 ON (상시 청취 시작)")
             TextOutput.show_notification("WhisperFlow", "드라이브 모드 ON")
         else:
             toggle_file.unlink(missing_ok=True)
+            self._stop_always_listen()
             log("[TTS] 드라이브 모드 OFF")
             TextOutput.show_notification("WhisperFlow", "드라이브 모드 OFF")
 

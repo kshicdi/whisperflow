@@ -36,6 +36,7 @@ class AlwaysListen:
         wake_threshold: float = 0.5,
         speech_threshold: float = 0.008,
         sample_rate: int = 16000,
+        skip_boot_wait: bool = False,
     ):
         """
         Args:
@@ -54,6 +55,7 @@ class AlwaysListen:
         self.wake_threshold = wake_threshold
         self.speech_threshold = speech_threshold
         self.sample_rate = sample_rate
+        self._skip_boot_wait = skip_boot_wait
         self._audio_gain = 20  # 맥북 마이크 증폭 배율
 
         self._running = False
@@ -105,7 +107,7 @@ class AlwaysListen:
         print("[AlwaysListen] 모델 로드 완료.")
 
         self._running = True
-        self._state = _STATE_BOOT_WAIT
+        self._state = _STATE_IDLE if self._skip_boot_wait else _STATE_BOOT_WAIT
         self._last_wake_time = 0.0
         self._clap_fired = False
 
