@@ -680,14 +680,11 @@ class WhisperFlowApp(rumps.App):
             if self.camera_feed is not None:
                 return True
             # 아이폰 vs 맥북 판별
-            if '아이폰' in text or 'iPhone' in text.lower():
-                camera_index = 1  # iPhone Continuity Camera
-                camera_name = "아이폰"
-            elif '맥북' in text or '맥' in text:
+            if '맥북' in text or '맥' in text:
                 camera_index = 0  # MacBook 내장 카메라
                 camera_name = "맥북"
             else:
-                camera_index = 1  # 기본: 아이폰
+                camera_index = 1  # iPhone Continuity Camera
                 camera_name = "아이폰"
 
             if self.camera_feed is not None:
