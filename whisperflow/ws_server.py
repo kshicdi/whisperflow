@@ -39,6 +39,7 @@ class WhisperFlowWSServer:
         self._stop_event: Optional[asyncio.Event] = None
         # 외부에서 등록하는 콜백 (app.py에서 remote_record 처리용)
         self._on_remote_record = None
+        self._on_conversation_continue = None
 
     # ------------------------------------------------------------------
     # HTTP static file handler (called via process_request hook)
@@ -124,9 +125,15 @@ class WhisperFlowWSServer:
                     data = json.loads(message)
                     msg_type = data.get("type", "")
                     # Forward input/output/state/transcript messages
-                    if msg_type in ("input", "output", "output_chunk", "state", "transcript", "audio_level", "browser_frame", "browser_stop", "code_action", "ui_action", "camera_frame", "face_recognized", "remote_record", "tts_audio", "gesture"):
+                    if msg_type in ("input", "output", "output_chunk", "state", "transcript", "audio_level", "browser_frame", "browser_stop", "code_action", "ui_action", "camera_frame", "face_recognized", "remote_record", "tts_audio", "gesture", "conversation_continue"):
                         if msg_type == "state":
                             self._current_state = data.get("value", "idle")
+                        # conversation_continue: 대화 모드 진입
+                        if msg_type == "conversation_continue" and self._on_conversation_continue:
+                            try:
+                                self._on_conversation_continue()
+                            except Exception as e:
+                                logger.error("conversation_continue callback error: %s", e)
                         # remote_record: 앱 콜백 호출 (녹음 토글)
                         if msg_type == "remote_record" and self._on_remote_record:
                             try:

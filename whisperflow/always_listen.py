@@ -15,6 +15,7 @@ from silero_vad import load_silero_vad
 _STATE_BOOT_WAIT = "boot_wait"  # 박수 2번 대기 (시스템 온라인 전)
 _STATE_IDLE = "idle"            # 웨이크 워드 대기 중
 _STATE_SPEECH = "speech"        # 웨이크 워드 감지 후 녹음 중
+_STATE_CONV_WAIT = "conv_wait"  # 대화 모드 — 웨이크 워드 없이 음성 대기
 
 
 class AlwaysListen:
@@ -34,12 +35,14 @@ class AlwaysListen:
         on_wake: Optional[Callable[[], None]] = None,
         on_speech_detected: Optional[Callable[[np.ndarray, int], None]] = None,
         on_audio_level: Optional[Callable[[float], None]] = None,
+        on_conversation_end: Optional[Callable[[], None]] = None,
         clap_threshold: float = 0.025,
         wake_threshold: float = 0.5,
         speech_threshold: float = 0.5,
         sample_rate: int = 16000,
         skip_boot_wait: bool = False,
         audio_gain: float = 20,
+        conversation_timeout: float = 10.0,
     ):
         """
         Args:
@@ -54,6 +57,7 @@ class AlwaysListen:
         self.on_wake = on_wake
         self.on_speech_detected = on_speech_detected
         self.on_audio_level = on_audio_level
+        self.on_conversation_end = on_conversation_end
         self.clap_threshold = clap_threshold
         self.wake_threshold = wake_threshold
         self.speech_threshold = speech_threshold
@@ -89,6 +93,10 @@ class AlwaysListen:
         # --- Silero VAD ---
         self._silero_model = None
         self._vad_buffer = np.array([], dtype=np.float32)
+
+        # --- 대화 모드 ---
+        self._conversation_timeout = conversation_timeout  # 대화 대기 묵음 타임아웃
+        self._conv_wait_start: float = 0.0  # 대화 대기 시작 시각
 
         # --- openWakeWord 모델 (start() 호출 시 로드) ---
         self._oww_model: Optional[Model] = None
@@ -149,6 +157,17 @@ class AlwaysListen:
         if self._silero_model is not None:
             self._silero_model.reset_states()
 
+    def enter_conversation_mode(self) -> None:
+        """대화 모드 진입 — 웨이크 워드 없이 바로 음성 대기."""
+        with self._lock:
+            self._state = _STATE_CONV_WAIT
+            self._conv_wait_start = time.monotonic()
+            self._silence_duration = 0.0
+            self._vad_buffer = np.array([], dtype=np.float32)
+            if self._silero_model is not None:
+                self._silero_model.reset_states()
+        print(f"[AlwaysListen] 대화 모드 진입 (타임아웃: {self._conversation_timeout}초)")
+
     def stop(self) -> None:
         """오디오 스트림을 중지한다."""
         self._running = False
@@ -193,6 +212,8 @@ class AlwaysListen:
                 # 녹음 중 3밴드 오디오 레벨 전송 (파티클 반응용)
                 if self.on_audio_level:
                     self._send_audio_bands(audio_raw)
+            elif self._state == _STATE_CONV_WAIT:
+                self._process_conv_wait(audio_raw, block_duration)
 
     def _send_audio_bands(self, audio: np.ndarray) -> None:
         """3밴드 주파수 분석 → on_audio_level 콜백으로 전달."""
@@ -331,6 +352,52 @@ class AlwaysListen:
                     args=(recorded, self.sample_rate),
                     daemon=True,
                 ).start()
+
+    def _process_conv_wait(self, audio: np.ndarray, block_duration: float) -> None:
+        """대화 모드: Silero VAD로 음성 감지 시 녹음 시작, 타임아웃 시 대화 종료."""
+        elapsed = time.monotonic() - self._conv_wait_start
+
+        # Silero VAD로 음성 감지
+        self._vad_buffer = np.concatenate([self._vad_buffer, audio]) if len(self._vad_buffer) > 0 else audio.copy()
+
+        is_speech = False
+        while len(self._vad_buffer) >= 512:
+            chunk = self._vad_buffer[:512]
+            self._vad_buffer = self._vad_buffer[512:]
+            tensor = torch.from_numpy(chunk)
+            speech_prob = self._silero_model(tensor, self.sample_rate).item()
+            if speech_prob >= self.speech_threshold:
+                is_speech = True
+
+        if is_speech:
+            # 음성 감지 → 녹음 모드로 전환 (웨이크 워드 스킵)
+            self._state = _STATE_SPEECH
+            self._silence_duration = 0.0
+            self._record_start_time = time.monotonic()
+            self._record_buffer.clear()
+            self._record_buffer.append(audio.copy())
+            self._vad_buffer = np.array([], dtype=np.float32)
+            if self._silero_model is not None:
+                self._silero_model.reset_states()
+            print(f"[AlwaysListen] 대화 모드 → 음성 감지! 녹음 시작")
+            return
+
+        # 타임아웃 체크
+        if elapsed >= self._conversation_timeout:
+            self._state = _STATE_IDLE
+            self._vad_buffer = np.array([], dtype=np.float32)
+            if self._silero_model is not None:
+                self._silero_model.reset_states()
+            print(f"[AlwaysListen] 대화 모드 타임아웃 ({self._conversation_timeout}초) → 웨이크 워드 대기")
+            threading.Thread(target=self._fire_conversation_end, daemon=True).start()
+
+    def _fire_conversation_end(self) -> None:
+        """대화 종료 콜백 호출."""
+        if self.on_conversation_end:
+            try:
+                self.on_conversation_end()
+            except Exception as e:
+                print(f"[AlwaysListen] on_conversation_end 오류: {e}")
 
     def _fire_wake(self) -> None:
         """웨이크 워드 콜백 호출 (별도 스레드)."""

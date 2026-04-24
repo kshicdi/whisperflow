@@ -103,6 +103,7 @@ class WhisperFlowApp(rumps.App):
             if WhisperFlowWSServer is not None:
                 self.ws_server = WhisperFlowWSServer()
                 self.ws_server._on_remote_record = self._handle_remote_record
+                self.ws_server._on_conversation_continue = self.enter_conversation_mode
                 self.ws_server.start()
             else:
                 self.ws_server = None
@@ -649,6 +650,7 @@ class WhisperFlowApp(rumps.App):
             on_wake=self._on_wake_word,
             on_speech_detected=self._on_speech_detected,
             on_audio_level=self._on_audio_level,
+            on_conversation_end=self._on_conversation_end,
             skip_boot_wait=skip_boot_wait,
             audio_gain=preset['audio_gain'],
             wake_threshold=preset['wake_threshold'],
@@ -666,6 +668,26 @@ class WhisperFlowApp(rumps.App):
             self.always_listen = None
         from . import filming_scenarios
         filming_scenarios._always_listen_ref = None
+
+    def _on_conversation_end(self) -> None:
+        """대화 모드 타임아웃 → 대기 모드 효과음 + idle"""
+        import time
+        log("[상시청취] 대화 모드 종료 → 대기 모드")
+        sound_path = os.path.join(os.path.dirname(__file__), "static", "sounds", "standby.wav")
+        if self.always_listen and os.path.exists(sound_path):
+            self.always_listen.mute()
+            subprocess.Popen(["afplay", sound_path]).wait()
+            time.sleep(0.2)
+            if self.always_listen:
+                self.always_listen.unmute()
+        self._ws_broadcast("broadcast_state", "idle")
+
+    def enter_conversation_mode(self) -> None:
+        """외부에서 대화 모드 진입 요청 (TTS 완료 후 호출)"""
+        if self.always_listen:
+            self.always_listen.enter_conversation_mode()
+            self._ws_broadcast("broadcast_state", "recording")
+            log("[상시청취] 대화 모드 진입 — 바로 말씀하세요")
 
     def _on_double_clap(self) -> None:
         """박수 2번 감지 → 시스템 온라인"""
