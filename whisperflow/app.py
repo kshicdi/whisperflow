@@ -689,17 +689,8 @@ class WhisperFlowApp(rumps.App):
 
             if self.camera_feed is not None:
                 self.camera_feed.stop()
+                self.camera_feed = None
             if CameraFeed is not None:
-                # 먼저 카메라 연결 가능 여부 테스트
-                import cv2
-                test_cap = cv2.VideoCapture(camera_index)
-                if not test_cap.isOpened():
-                    test_cap.release()
-                    log(f"[카메라] {camera_name} 카메라 연결 실패 (index={camera_index})")
-                    self._play_sound("camera_fail.wav")
-                    return True
-                test_cap.release()
-
                 self.camera_feed = CameraFeed(camera_index=camera_index, fps=5)
                 self.camera_feed.start()
                 log(f"[카메라] {camera_name} 카메라 시작 (index={camera_index})")
