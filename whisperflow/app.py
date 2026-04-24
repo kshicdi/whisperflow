@@ -671,8 +671,14 @@ class WhisperFlowApp(rumps.App):
 
     def _handle_camera_command(self, text: str) -> bool:
         """카메라 켜기/끄기 명령 키워드 매칭 (드라이브 모드용, LLM 바이패스)"""
+        # 짧은 명령만 매칭 (긴 문장에서 카메라 언급은 무시)
+        if len(text) > 30:
+            return False
         # 카메라 켜기: "카메라 켜줘", "아이폰 카메라 연결", "맥북 카메라 켜줘" 등
         if '카메라' in text and any(w in text for w in ['켜', '열어', '활성', '시작', '연결']):
+            # 이미 켜져 있으면 무시
+            if self.camera_feed is not None:
+                return True
             # 아이폰 vs 맥북 판별
             if '아이폰' in text or 'iPhone' in text.lower():
                 camera_index = 1  # iPhone Continuity Camera
