@@ -856,7 +856,8 @@ class WhisperFlowApp(rumps.App):
             # 드라이브 모드: 카메라 명령 키워드 매칭 (LLM 바이패스)
             drive_mode = (Path.home() / ".whisperflow_auto_tts").exists()
             if drive_mode and self._handle_camera_command(text):
-                self._ws_broadcast("broadcast_state", "idle")
+                # 카메라 명령 처리 후 대화 모드 유지
+                self.enter_conversation_mode()
                 return
 
             # 매칭 안 되면 Claude Code로 전달
