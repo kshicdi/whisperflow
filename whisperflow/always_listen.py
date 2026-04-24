@@ -6,7 +6,9 @@ from typing import Optional, Callable
 
 import numpy as np
 import sounddevice as sd
+import torch
 from openwakeword.model import Model
+from silero_vad import load_silero_vad
 
 
 # 청취 상태 상수
@@ -34,9 +36,10 @@ class AlwaysListen:
         on_audio_level: Optional[Callable[[float], None]] = None,
         clap_threshold: float = 0.025,
         wake_threshold: float = 0.5,
-        speech_threshold: float = 0.03,
+        speech_threshold: float = 0.5,
         sample_rate: int = 16000,
         skip_boot_wait: bool = False,
+        audio_gain: float = 20,
     ):
         """
         Args:
@@ -44,7 +47,7 @@ class AlwaysListen:
             on_speech_detected: 음성 녹음 완료 시 호출되는 콜백
                                  (audio: np.ndarray, sample_rate: int)
             wake_threshold: 웨이크 워드 감지 점수 임계값 (0~1)
-            speech_threshold: 음성/묵음 판별 진폭 임계값 (0~1, float32 기준)
+            speech_threshold: Silero VAD 음성 확률 임계값 (0~1, 기본 0.5)
             sample_rate: 샘플레이트 (openWakeWord는 16kHz 필요)
         """
         self.on_double_clap = on_double_clap
@@ -56,7 +59,7 @@ class AlwaysListen:
         self.speech_threshold = speech_threshold
         self.sample_rate = sample_rate
         self._skip_boot_wait = skip_boot_wait
-        self._audio_gain = 20  # 맥북 마이크 증폭 배율
+        self._audio_gain = audio_gain  # 마이크 증폭 배율
 
         self._running = False
         self._stream: Optional[sd.InputStream] = None
@@ -78,15 +81,14 @@ class AlwaysListen:
 
         # --- VAD 상태 ---
         self._silence_duration: float = 0.0
-        self._silence_end: float = 2.5      # 묵음 이 시간 이상 지속 시 녹음 종료
+        self._silence_end: float = 3.0      # 묵음 이 시간 이상 지속 시 녹음 종료
         self._min_record_time: float = 3.0  # 최소 녹음 시간 (초) — 이 시간 전에는 묵음 무시
         self._record_start_time: float = 0.0
         self._record_buffer: list[np.ndarray] = []
 
-        # --- 적응형 배경 소음 추적 ---
-        self._noise_floor: float = 0.0      # 현재 추정 배경 소음 레벨
-        self._noise_alpha: float = 0.05     # EMA 업데이트 비율 (작을수록 느리게 적응)
-        self._speech_ratio: float = 2.5     # 배경 소음 대비 이 배수 이상이면 음성
+        # --- Silero VAD ---
+        self._silero_model = None
+        self._vad_buffer = np.array([], dtype=np.float32)
 
         # --- openWakeWord 모델 (start() 호출 시 로드) ---
         self._oww_model: Optional[Model] = None
@@ -103,6 +105,10 @@ class AlwaysListen:
         """openWakeWord 모델을 로드하고 백그라운드 오디오 스트림을 시작한다."""
         if self._running:
             return
+
+        print("[AlwaysListen] Silero VAD 모델 로드 중...")
+        self._silero_model = load_silero_vad()
+        print("[AlwaysListen] Silero VAD 로드 완료.")
 
         print("[AlwaysListen] openWakeWord 모델 로드 중 (hey_jarvis)...")
         self._oww_model = Model(
@@ -139,7 +145,9 @@ class AlwaysListen:
         self._record_buffer.clear()
         self._record_start_time = time.monotonic()
         self._silence_duration = 0.0
-        self._noise_floor = 0.0
+        self._vad_buffer = np.array([], dtype=np.float32)
+        if self._silero_model is not None:
+            self._silero_model.reset_states()
 
     def stop(self) -> None:
         """오디오 스트림을 중지한다."""
@@ -265,6 +273,9 @@ class AlwaysListen:
             self._silence_duration = 0.0
             self._record_start_time = now
             self._record_buffer.clear()
+            self._vad_buffer = np.array([], dtype=np.float32)
+            if self._silero_model is not None:
+                self._silero_model.reset_states()
 
             # 감지 후 모델 리셋 (잔류 점수 제거)
             self._oww_model.reset()
@@ -272,34 +283,30 @@ class AlwaysListen:
             threading.Thread(target=self._fire_wake, daemon=True).start()
 
     def _process_vad(self, audio: np.ndarray, block_duration: float) -> None:
-        """웨이크 워드 감지 후 적응형 VAD로 묵음 구간 검출."""
+        """Silero VAD로 음성/비음성 판별."""
         self._record_buffer.append(audio.copy())
 
-        amplitude = float(np.max(np.abs(audio)))
         elapsed = time.monotonic() - self._record_start_time
 
-        # 최소 녹음 시간 이전: 배경 소음 레벨 학습 + 녹음만 진행
+        # 최소 녹음 시간 이전에는 묵음 체크 안 함
         if elapsed < self._min_record_time:
-            # 배경 소음 추정 (EMA)
-            if self._noise_floor == 0:
-                self._noise_floor = amplitude
-            else:
-                self._noise_floor = self._noise_floor * (1 - self._noise_alpha) + amplitude * self._noise_alpha
-            if int(elapsed * 10) % 10 == 0:
-                print(f"[VAD] 소음학습 {elapsed:.1f}s amp={amplitude:.4f} noise={self._noise_floor:.4f}")
             return
 
-        # 적응형 임계값: 배경 소음 × 배수
-        adaptive_threshold = max(self.speech_threshold, self._noise_floor * self._speech_ratio)
-        is_speech = amplitude >= adaptive_threshold
+        # Silero VAD는 512 샘플 단위 → 80ms(1280샘플)를 512씩 분할
+        self._vad_buffer = np.concatenate([self._vad_buffer, audio]) if len(self._vad_buffer) > 0 else audio.copy()
 
-        # 묵음 구간에서 배경 소음 레벨 계속 업데이트
-        if not is_speech:
-            self._noise_floor = self._noise_floor * (1 - self._noise_alpha) + amplitude * self._noise_alpha
+        is_speech = False
+        while len(self._vad_buffer) >= 512:
+            chunk = self._vad_buffer[:512]
+            self._vad_buffer = self._vad_buffer[512:]
+            tensor = torch.from_numpy(chunk)
+            speech_prob = self._silero_model(tensor, self.sample_rate).item()
+            if speech_prob >= self.speech_threshold:
+                is_speech = True
 
         # 디버그: 1초마다 VAD 상태 출력
         if int(elapsed * 10) % 10 == 0:
-            print(f"[VAD] {elapsed:.1f}s amp={amplitude:.4f} noise={self._noise_floor:.4f} thresh={adaptive_threshold:.4f} speech={is_speech} silence={self._silence_duration:.1f}s")
+            print(f"[VAD-Silero] {elapsed:.1f}s speech={is_speech} silence={self._silence_duration:.1f}s")
 
         if is_speech:
             self._silence_duration = 0.0
@@ -311,6 +318,9 @@ class AlwaysListen:
                 recorded = np.concatenate(self._record_buffer)
                 self._record_buffer.clear()
                 self._silence_duration = 0.0
+                self._vad_buffer = np.array([], dtype=np.float32)
+                if self._silero_model is not None:
+                    self._silero_model.reset_states()
                 # openWakeWord 내부 상태 리셋 (이전 감지 점수 잔류 방지)
                 if self._oww_model is not None:
                     self._oww_model.reset()

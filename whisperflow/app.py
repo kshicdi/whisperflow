@@ -615,18 +615,44 @@ class WhisperFlowApp(rumps.App):
 
     # === 상시 청취 공통 헬퍼 ===
 
+    def _detect_mic_preset(self) -> dict:
+        """현재 입력 디바이스에 맞는 프리셋 반환"""
+        try:
+            import sounddevice as sd
+            dev = sd.query_devices(sd.default.device[0])
+            name = dev['name'].lower()
+            if 'airpod' in name:
+                log(f"[마이크] 에어팟 감지: {dev['name']}")
+                return {'audio_gain': 12, 'wake_threshold': 0.35, 'speech_threshold': 0.5}
+            elif 'iphone' in name:
+                log(f"[마이크] 아이폰 감지: {dev['name']}")
+                return {'audio_gain': 8, 'wake_threshold': 0.4, 'speech_threshold': 0.5}
+            else:
+                log(f"[마이크] 맥북/기타 감지: {dev['name']}")
+                return {'audio_gain': 20, 'wake_threshold': 0.5, 'speech_threshold': 0.5}
+        except Exception as e:
+            log(f"[마이크] 디바이스 감지 실패: {e}")
+            return {'audio_gain': 20, 'wake_threshold': 0.5, 'speech_threshold': 0.5}
+
     def _start_always_listen(self, skip_boot_wait: bool = False) -> None:
-        """상시 청취 시작 (촬영/드라이브 공용)"""
+        """상시 청취 시작 (촬영/드라이브 공용, 마이크 자동 감지)"""
         if AlwaysListen is None:
             return
         if self.always_listen is not None:
             self.always_listen.stop()
+
+        preset = self._detect_mic_preset()
+        log(f"[상시청취] 프리셋: gain={preset['audio_gain']}, wake={preset['wake_threshold']}, speech={preset['speech_threshold']}")
+
         self.always_listen = AlwaysListen(
             on_double_clap=self._on_double_clap,
             on_wake=self._on_wake_word,
             on_speech_detected=self._on_speech_detected,
             on_audio_level=self._on_audio_level,
             skip_boot_wait=skip_boot_wait,
+            audio_gain=preset['audio_gain'],
+            wake_threshold=preset['wake_threshold'],
+            speech_threshold=preset['speech_threshold'],
         )
         self.always_listen.start()
         # filming_scenarios에 참조 전달 (TTS 중 마이크 음소거용)
