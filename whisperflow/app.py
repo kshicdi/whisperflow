@@ -747,13 +747,11 @@ class WhisperFlowApp(rumps.App):
             log(f"[상시청취] 변환 오류: {e}")
 
     def _play_processing_sound(self) -> None:
-        """녹음 완료 시 랜덤 응답 확인 효과음 재생 (마이크 음소거 포함)"""
-        import time, random
-        sounds_dir = os.path.join(os.path.dirname(__file__), "static", "sounds")
-        ack_files = [f for f in os.listdir(sounds_dir) if f.startswith("ack_") and f.endswith(".wav")]
-        if not ack_files:
+        """녹음 완료 시 'Let me check on that, sir' 효과음 재생 (마이크 음소거 포함)"""
+        import time
+        sound_path = os.path.join(os.path.dirname(__file__), "static", "sounds", "processing.wav")
+        if not os.path.exists(sound_path):
             return
-        sound_path = os.path.join(sounds_dir, random.choice(ack_files))
         if self.always_listen:
             self.always_listen.mute()
         subprocess.Popen(["afplay", sound_path]).wait()
