@@ -59,11 +59,26 @@ class Transcriber:
                 audio_path,
                 language=lang,
                 beam_size=5,
-                vad_filter=True,  # 음성 구간만 처리
+                vad_filter=True,
+                vad_parameters=dict(
+                    threshold=0.3,          # 기본 0.5 → 낮춰서 소음 환경 대응
+                    min_speech_duration_ms=200,
+                    min_silence_duration_ms=500,
+                ),
             )
 
             # 세그먼트 텍스트 병합
             text = "".join(segment.text for segment in segments).strip()
+
+            # VAD가 음성을 못 찾은 경우 VAD 없이 재시도
+            if not text:
+                segments2, _ = model.transcribe(
+                    audio_path,
+                    language=lang,
+                    beam_size=5,
+                    vad_filter=False,
+                )
+                text = "".join(segment.text for segment in segments2).strip()
 
             # 문장 끝에서 줄바꿈 추가 (. ! ?)
             import re
