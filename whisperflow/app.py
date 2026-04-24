@@ -690,19 +690,20 @@ class WhisperFlowApp(rumps.App):
             if self.camera_feed is not None:
                 self.camera_feed.stop()
             if CameraFeed is not None:
+                # 먼저 카메라 연결 가능 여부 테스트
+                import cv2
+                test_cap = cv2.VideoCapture(camera_index)
+                if not test_cap.isOpened():
+                    test_cap.release()
+                    log(f"[카메라] {camera_name} 카메라 연결 실패 (index={camera_index})")
+                    self._play_sound("camera_fail.wav")
+                    return True
+                test_cap.release()
+
                 self.camera_feed = CameraFeed(camera_index=camera_index, fps=5)
                 self.camera_feed.start()
                 log(f"[카메라] {camera_name} 카메라 시작 (index={camera_index})")
-                # 효과음 재생
-                sound_path = os.path.join(os.path.dirname(__file__), "static", "sounds", "camera_on.wav")
-                if os.path.exists(sound_path):
-                    if self.always_listen:
-                        self.always_listen.mute()
-                    subprocess.Popen(["afplay", sound_path]).wait()
-                    if self.always_listen:
-                        import time
-                        time.sleep(0.2)
-                        self.always_listen.unmute()
+                self._play_sound("camera_on.wav")
             return True
 
         # 카메라 끄기: "카메라 꺼줘", "카메라 종료" 등
@@ -711,19 +712,24 @@ class WhisperFlowApp(rumps.App):
                 self.camera_feed.stop()
                 self.camera_feed = None
                 log("[카메라] 카메라 종료")
-                sound_path = os.path.join(os.path.dirname(__file__), "static", "sounds", "camera_off.wav")
-                if os.path.exists(sound_path):
-                    if self.always_listen:
-                        self.always_listen.mute()
-                    subprocess.Popen(["afplay", sound_path]).wait()
-                    if self.always_listen:
-                        import time
-                        time.sleep(0.2)
-                        self.always_listen.unmute()
+                self._play_sound("camera_off.wav")
                 self._ws_broadcast("broadcast_raw", '{"type":"browser_stop"}')
             return True
 
         return False
+
+    def _play_sound(self, filename: str) -> None:
+        """효과음 재생 (마이크 음소거 포함)"""
+        import time
+        sound_path = os.path.join(os.path.dirname(__file__), "static", "sounds", filename)
+        if not os.path.exists(sound_path):
+            return
+        if self.always_listen:
+            self.always_listen.mute()
+        subprocess.Popen(["afplay", sound_path]).wait()
+        time.sleep(0.2)
+        if self.always_listen:
+            self.always_listen.unmute()
 
     def _on_conversation_end(self) -> None:
         """대화 모드 타임아웃 → 대기 모드 효과음 + idle"""
