@@ -623,10 +623,7 @@ class WhisperFlowApp(rumps.App):
     def _on_audio_level(self, level: float, low: float = 0, mid: float = 0, high: float = 0) -> None:
         """실시간 3밴드 오디오 레벨 → JARVIS UI 파티클 반응"""
         if self.ws_server:
-            import json
-            msg = json.dumps({"type": "audio_level", "value": round(level, 4),
-                             "low": round(low, 4), "mid": round(mid, 4), "high": round(high, 4)})
-            self.ws_server._schedule(self.ws_server._broadcast(msg))
+            self.ws_server.broadcast_audio_level(float(level))
 
     def _on_wake_word(self) -> None:
         """웨이크 워드 감지 → JARVIS UI 리스닝 상태"""
