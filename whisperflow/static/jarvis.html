@@ -2601,6 +2601,12 @@
         wsLabel.textContent = 'CONNECTED';
         $('dpSys').textContent = 'SYS.OK';
         if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+        // 부팅 시퀀스 없이 연결되면 HUD 바로 표시 (드라이브 모드 등)
+        const hud = document.querySelector('.hud-container');
+        if (hud && hud.classList.contains('hidden')) {
+          hud.classList.remove('hidden');
+          hud.classList.add('reveal');
+        }
       };
 
       ws.onclose = () => {
