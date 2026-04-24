@@ -729,7 +729,8 @@ class WhisperFlowApp(rumps.App):
         log(f"[상시청취] 음성 감지 → Whisper 변환 시작 ({len(audio_data)/sample_rate:.1f}초)")
         import tempfile, wave
         try:
-            # 녹음 완료 피드백 효과음 재생
+            # 녹음 완료 → UI 상태 processing으로 전환 + 효과음 재생
+            self._ws_broadcast("broadcast_state", "processing")
             self._play_processing_sound()
 
             tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
@@ -746,11 +747,13 @@ class WhisperFlowApp(rumps.App):
             log(f"[상시청취] 변환 오류: {e}")
 
     def _play_processing_sound(self) -> None:
-        """녹음 완료 시 '확인하겠습니다' 효과음 재생 (마이크 음소거 포함)"""
-        import time
-        sound_path = os.path.join(os.path.dirname(__file__), "static", "sounds", "processing.wav")
-        if not os.path.exists(sound_path):
+        """녹음 완료 시 랜덤 응답 확인 효과음 재생 (마이크 음소거 포함)"""
+        import time, random
+        sounds_dir = os.path.join(os.path.dirname(__file__), "static", "sounds")
+        ack_files = [f for f in os.listdir(sounds_dir) if f.startswith("ack_") and f.endswith(".wav")]
+        if not ack_files:
             return
+        sound_path = os.path.join(sounds_dir, random.choice(ack_files))
         if self.always_listen:
             self.always_listen.mute()
         subprocess.Popen(["afplay", sound_path]).wait()
