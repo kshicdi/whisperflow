@@ -1480,12 +1480,79 @@
     border-top-color: var(--theme);
     animation: spin-slow 1s linear infinite;
   }
+
+  /* ── STL 3D Viewer Overlay ── */
+  #stlOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    background: rgba(0, 0, 0, 0.85);
+    justify-content: center;
+    align-items: center;
+  }
+  #stlOverlay.active {
+    display: flex;
+  }
+  #stlContainer {
+    position: relative;
+    width: 70vw;
+    height: 70vh;
+    border: 1px solid var(--theme-04);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 0 40px var(--theme-02), inset 0 0 20px var(--theme-01);
+  }
+  #stlContainer canvas {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+  }
+  #stlLabel {
+    position: absolute;
+    top: 12px;
+    left: 16px;
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    color: var(--theme-05);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    pointer-events: none;
+  }
+  #stlClose {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    font-family: 'Orbitron', monospace;
+    font-size: 13px;
+    color: var(--theme-05);
+    cursor: pointer;
+    background: none;
+    border: 1px solid var(--theme-03);
+    padding: 4px 10px;
+    border-radius: 4px;
+    transition: color 0.2s, border-color 0.2s;
+    z-index: 1;
+  }
+  #stlClose:hover {
+    color: var(--theme);
+    border-color: var(--theme);
+  }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r160/three.min.js"></script>
 </head>
 <body>
   <div class="bg-grid"></div>
   <div class="vignette"></div>
   <div class="scanlines"></div>
+
+  <!-- STL 3D Viewer Overlay -->
+  <div id="stlOverlay">
+    <div id="stlContainer">
+      <div id="stlLabel">HOLOGRAM RENDER</div>
+      <button id="stlClose">&times; CLOSE</button>
+    </div>
+  </div>
 
   <!-- System Boot Screen (hud-container 밖 — hidden 영향 안 받음) -->
   <div class="boot-screen" id="bootScreen">
@@ -2911,10 +2978,206 @@
           break;
         }
 
+        case 'stl_view': {
+          stlViewerOpen(msg.value, msg.label);
+          break;
+        }
+
+        case 'stl_close': {
+          stlViewerClose();
+          break;
+        }
+
         default:
           break;
       }
     }
+
+    // ============================================================
+    //  STL 3D VIEWER (Hologram Style)
+    // ============================================================
+    let stlScene = null, stlCamera = null, stlRenderer = null, stlAnimId = null;
+    let stlMeshGroup = null;
+
+    function parseSTLBinary(buffer) {
+      const dv = new DataView(buffer);
+      const triangles = dv.getUint32(80, true);
+      const geometry = new THREE.BufferGeometry();
+      const vertices = new Float32Array(triangles * 9);
+      const normals = new Float32Array(triangles * 9);
+      let offset = 84;
+      for (let i = 0; i < triangles; i++) {
+        const nx = dv.getFloat32(offset, true); offset += 4;
+        const ny = dv.getFloat32(offset, true); offset += 4;
+        const nz = dv.getFloat32(offset, true); offset += 4;
+        for (let v = 0; v < 3; v++) {
+          const idx = i * 9 + v * 3;
+          vertices[idx]     = dv.getFloat32(offset, true); offset += 4;
+          vertices[idx + 1] = dv.getFloat32(offset, true); offset += 4;
+          vertices[idx + 2] = dv.getFloat32(offset, true); offset += 4;
+          normals[idx]     = nx;
+          normals[idx + 1] = ny;
+          normals[idx + 2] = nz;
+        }
+        offset += 2; // attribute byte count
+      }
+      geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+      geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+      geometry.computeBoundingSphere();
+      return geometry;
+    }
+
+    function stlViewerOpen(base64Data, label) {
+      const container = $('stlContainer');
+      const overlay = $('stlOverlay');
+
+      // Clean up previous
+      stlViewerClose();
+
+      // Decode base64 to ArrayBuffer
+      const binary = atob(base64Data);
+      const buffer = new ArrayBuffer(binary.length);
+      const view = new Uint8Array(buffer);
+      for (let i = 0; i < binary.length; i++) view[i] = binary.charCodeAt(i);
+
+      // Parse STL
+      const geometry = parseSTLBinary(buffer);
+
+      // Setup Three.js scene
+      stlScene = new THREE.Scene();
+
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      stlCamera = new THREE.PerspectiveCamera(45, w / h, 0.1, 10000);
+
+      stlRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      stlRenderer.setSize(w, h);
+      stlRenderer.setPixelRatio(window.devicePixelRatio);
+      stlRenderer.setClearColor(0x000000, 0);
+      container.appendChild(stlRenderer.domElement);
+
+      // Group for rotation
+      stlMeshGroup = new THREE.Group();
+
+      // Wireframe mesh (cyan)
+      const wireMat = new THREE.MeshBasicMaterial({
+        color: 0x00d4ff,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.35,
+      });
+      const wireMesh = new THREE.Mesh(geometry, wireMat);
+      stlMeshGroup.add(wireMesh);
+
+      // Semi-transparent solid mesh
+      const solidMat = new THREE.MeshPhongMaterial({
+        color: 0x00d4ff,
+        transparent: true,
+        opacity: 0.12,
+        side: THREE.DoubleSide,
+        shininess: 80,
+        specular: 0x00d4ff,
+      });
+      const solidMesh = new THREE.Mesh(geometry, solidMat);
+      stlMeshGroup.add(solidMesh);
+
+      // Edge glow (slightly brighter wireframe)
+      const edgeMat = new THREE.MeshBasicMaterial({
+        color: 0x66eeff,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.08,
+      });
+      const edgeMesh = new THREE.Mesh(geometry, edgeMat);
+      edgeMesh.scale.set(1.002, 1.002, 1.002);
+      stlMeshGroup.add(edgeMesh);
+
+      stlScene.add(stlMeshGroup);
+
+      // Center geometry
+      geometry.computeBoundingBox();
+      const box = geometry.boundingBox;
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      stlMeshGroup.position.set(-center.x, -center.y, -center.z);
+
+      // Camera position based on bounding sphere
+      const sphere = geometry.boundingSphere;
+      const dist = sphere.radius * 2.8;
+      stlCamera.position.set(dist * 0.5, dist * 0.4, dist);
+      stlCamera.lookAt(0, 0, 0);
+
+      // Lights
+      const ambient = new THREE.AmbientLight(0x00d4ff, 0.4);
+      stlScene.add(ambient);
+      const dirLight = new THREE.DirectionalLight(0x00d4ff, 0.8);
+      dirLight.position.set(1, 1, 1);
+      stlScene.add(dirLight);
+      const backLight = new THREE.DirectionalLight(0x0066ff, 0.3);
+      backLight.position.set(-1, -0.5, -1);
+      stlScene.add(backLight);
+
+      // Label
+      if (label) $('stlLabel').textContent = label;
+      else $('stlLabel').textContent = 'HOLOGRAM RENDER';
+
+      // Show overlay
+      overlay.classList.add('active');
+
+      // Animate
+      function animate() {
+        stlAnimId = requestAnimationFrame(animate);
+        if (stlMeshGroup) stlMeshGroup.rotation.y += 0.008;
+        stlRenderer.render(stlScene, stlCamera);
+      }
+      animate();
+
+      // Resize handler
+      window._stlResize = () => {
+        if (!stlRenderer || !stlCamera) return;
+        const nw = container.clientWidth;
+        const nh = container.clientHeight;
+        stlCamera.aspect = nw / nh;
+        stlCamera.updateProjectionMatrix();
+        stlRenderer.setSize(nw, nh);
+      };
+      window.addEventListener('resize', window._stlResize);
+    }
+
+    function stlViewerClose() {
+      const overlay = $('stlOverlay');
+      overlay.classList.remove('active');
+      if (stlAnimId) { cancelAnimationFrame(stlAnimId); stlAnimId = null; }
+      if (stlRenderer) {
+        stlRenderer.dispose();
+        const canvas = stlRenderer.domElement;
+        if (canvas && canvas.parentNode) canvas.parentNode.removeChild(canvas);
+        stlRenderer = null;
+      }
+      if (stlScene) {
+        stlScene.traverse(obj => {
+          if (obj.geometry) obj.geometry.dispose();
+          if (obj.material) {
+            if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+            else obj.material.dispose();
+          }
+        });
+        stlScene = null;
+      }
+      stlCamera = null;
+      stlMeshGroup = null;
+      if (window._stlResize) {
+        window.removeEventListener('resize', window._stlResize);
+        window._stlResize = null;
+      }
+    }
+
+    // Close button handler
+    $('stlClose').addEventListener('click', stlViewerClose);
+    // Click overlay background to close
+    $('stlOverlay').addEventListener('click', (e) => {
+      if (e.target === $('stlOverlay')) stlViewerClose();
+    });
 
     // ============================================================
     //  BROWSER FEED ZOOM (Iron Man Hologram)

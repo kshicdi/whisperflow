@@ -125,7 +125,7 @@ class WhisperFlowWSServer:
                     data = json.loads(message)
                     msg_type = data.get("type", "")
                     # Forward input/output/state/transcript messages
-                    if msg_type in ("input", "output", "output_chunk", "state", "transcript", "audio_level", "browser_frame", "browser_stop", "code_action", "ui_action", "camera_frame", "face_recognized", "remote_record", "tts_audio", "gesture", "conversation_continue"):
+                    if msg_type in ("input", "output", "output_chunk", "state", "transcript", "audio_level", "browser_frame", "browser_stop", "code_action", "ui_action", "camera_frame", "face_recognized", "remote_record", "tts_audio", "gesture", "conversation_continue", "stl_view", "stl_close"):
                         if msg_type == "state":
                             self._current_state = data.get("value", "idle")
                         # conversation_continue: 대화 모드 진입
