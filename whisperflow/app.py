@@ -796,9 +796,9 @@ class WhisperFlowApp(rumps.App):
         log(f"[상시청취] 음성 감지 → Whisper 변환 시작 ({len(audio_data)/sample_rate:.1f}초)")
         import tempfile, wave
         try:
-            # 녹음 완료 → UI 상태 processing으로 전환 + 효과음 재생
+            # 녹음 완료 → speaking으로 효과음 재생 → processing으로 전환
+            self._play_sound("processing.wav")
             self._ws_broadcast("broadcast_state", "processing")
-            self._play_processing_sound()
 
             tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
             # float32 → int16 WAV 저장
@@ -812,19 +812,6 @@ class WhisperFlowApp(rumps.App):
             self.transcriber.transcribe_async(tmp.name)
         except Exception as e:
             log(f"[상시청취] 변환 오류: {e}")
-
-    def _play_processing_sound(self) -> None:
-        """녹음 완료 시 'Let me check on that, sir' 효과음 재생 (마이크 음소거 포함)"""
-        import time
-        sound_path = os.path.join(os.path.dirname(__file__), "static", "sounds", "processing.wav")
-        if not os.path.exists(sound_path):
-            return
-        if self.always_listen:
-            self.always_listen.mute()
-        subprocess.Popen(["afplay", sound_path]).wait()
-        time.sleep(0.2)
-        if self.always_listen:
-            self.always_listen.unmute()
 
     def _on_recording_start(self) -> None:
         """녹음 시작 콜백"""
