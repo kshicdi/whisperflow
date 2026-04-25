@@ -676,9 +676,6 @@ class WhisperFlowApp(rumps.App):
             return False
         # 카메라 켜기: "카메라 켜줘", "아이폰 카메라 연결", "맥북 카메라 켜줘" 등
         if '카메라' in text and any(w in text for w in ['켜', '열어', '활성', '시작', '연결']):
-            # 이미 켜져 있으면 무시
-            if self.camera_feed is not None:
-                return True
             # 아이폰 vs 맥북 판별
             if '맥북' in text or '맥' in text:
                 camera_index = 0  # MacBook 내장 카메라
