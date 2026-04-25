@@ -720,17 +720,19 @@ class WhisperFlowApp(rumps.App):
         return False
 
     def _play_sound(self, filename: str) -> None:
-        """효과음 재생 (마이크 음소거 포함)"""
+        """효과음 재생 (마이크 음소거 + UI speaking 상태)"""
         import time
         sound_path = os.path.join(os.path.dirname(__file__), "static", "sounds", filename)
         if not os.path.exists(sound_path):
             return
+        self._ws_broadcast("broadcast_state", "tts_playing")
         if self.always_listen:
             self.always_listen.mute()
         subprocess.Popen(["afplay", sound_path]).wait()
         time.sleep(0.2)
         if self.always_listen:
             self.always_listen.unmute()
+        self._ws_broadcast("broadcast_state", "idle")
 
     def _on_conversation_end(self) -> None:
         """대화 모드 타임아웃 → 대기 모드 효과음 + idle"""
@@ -738,6 +740,7 @@ class WhisperFlowApp(rumps.App):
         log("[상시청취] 대화 모드 종료 → 대기 모드")
         sound_path = os.path.join(os.path.dirname(__file__), "static", "sounds", "standby.wav")
         if self.always_listen and os.path.exists(sound_path):
+            self._ws_broadcast("broadcast_state", "tts_playing")
             self.always_listen.mute()
             subprocess.Popen(["afplay", sound_path]).wait()
             time.sleep(0.2)
@@ -774,6 +777,7 @@ class WhisperFlowApp(rumps.App):
 
         sound_path = os.path.join(os.path.dirname(__file__), "static", "sounds", "yes_sir.wav")
         if self.always_listen and os.path.exists(sound_path):
+            self._ws_broadcast("broadcast_state", "tts_playing")
             self.always_listen.mute()
             log("[상시청취] Yes sir 재생 시작")
             subprocess.Popen(["afplay", sound_path]).wait()
