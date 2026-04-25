@@ -694,6 +694,19 @@ class WhisperFlowApp(rumps.App):
                 self._play_sound("camera_on.wav")
             return True
 
+        # 카메라 전환: "카메라 전환", "카메라 바꿔" 등
+        if '카메라' in text and any(w in text for w in ['전환', '바꿔', '바꾸', '스위치', '변경']):
+            if self.camera_feed is not None:
+                current_index = self.camera_feed.camera_index
+                new_index = 0 if current_index == 1 else 1
+                new_name = "맥북" if new_index == 0 else "아이폰"
+                self.camera_feed.stop()
+                self.camera_feed = CameraFeed(camera_index=new_index, fps=5)
+                self.camera_feed.start()
+                log(f"[카메라] 전환 → {new_name} (index={new_index})")
+                self._play_sound("camera_on.wav")
+            return True
+
         # 카메라 끄기: "카메라 꺼줘", "카메라 종료" 등
         if '카메라' in text and any(w in text for w in ['꺼', '닫', '종료', '중지']):
             if self.camera_feed is not None:
