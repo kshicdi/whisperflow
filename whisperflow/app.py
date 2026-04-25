@@ -863,17 +863,16 @@ class WhisperFlowApp(rumps.App):
 
         if text:
             if self._remote_recording:
-                # 카메라가 켜져 있고 시각 관련 키워드가 있으면 프레임 캡처
-                vision_keywords = ['보여', '확인해', '찾아', '인식', '분석', '뭐하', '어딨', '캡처', '보이', '봐봐', '살펴']
-                if self.camera_feed is not None and any(kw in text for kw in vision_keywords):
+                # 카메라가 켜져 있으면 최신 프레임 캡처 (고정 경로, 1개만 유지)
+                if self.camera_feed is not None:
                     frame_b64 = self.camera_feed.get_current_frame()
                     if frame_b64:
-                        import base64, tempfile
-                        frame_path = tempfile.NamedTemporaryFile(suffix='.jpg', delete=False, prefix='jarvis_cam_').name
+                        import base64
+                        frame_path = "/tmp/jarvis_camera_latest.jpg"
                         with open(frame_path, 'wb') as f:
                             f.write(base64.b64decode(frame_b64))
-                        text = f"[카메라 캡처 이미지: {frame_path}] {text}"
-                        log(f"[카메라] 시각 키워드 감지 → 프레임 캡처: {frame_path}")
+                        text = f"[카메라가 켜져 있음. 이미지 확인이 필요하면: {frame_path}] {text}"
+                        log(f"[카메라] 최신 프레임 저장: {frame_path}")
 
                 # 원격 녹음: pbcopy로 클립보드 복사 후 현재 앱에 붙여넣기
                 self._remote_recording = False
