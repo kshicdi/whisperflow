@@ -11,13 +11,17 @@ JARVIS WebSocket 서버로 액션을 전송한다.
     PEACE      (피스)         → screenshot_analyze
 
 ■ 두 손 모드 (모션 기반 — wrist 간 거리 변화로 분류):
-    SPREAD     (두 손 벌리기) → spread_open
-    GATHER     (두 손 모으기) → gather_close
+    SPREAD     (두 손 벌리기)   → spread_open
+    GATHER     (두 손 모으기)   → gather_close
+    PUSH_DOWN  (두 손 아래로)   → push_down
+    PULL_UP    (두 손 위로)     → pull_up
 
 Usage (standalone):
     python -m whisperflow.gesture_control
     python -m whisperflow.gesture_control --camera 1
     python -m whisperflow.gesture_control --test          # WS 없이 테스트
+    python -m whisperflow.gesture_control --mac           # 맥 시스템 제어 (GUI 없음)
+    python -m whisperflow.gesture_control --test --mac    # 테스트 + 맥 제어 동시
 """
 
 import asyncio
@@ -45,7 +49,30 @@ GESTURE_ACTIONS = {
     "PEACE":     {"type": "ui_action",     "value": "screenshot_analyze"},
     "SPREAD":    {"type": "ui_action",     "value": "spread_open"},
     "GATHER":    {"type": "ui_action",     "value": "gather_close"},
+    "PUSH_DOWN": {"type": "ui_action",     "value": "push_down"},
+    "PULL_UP":   {"type": "ui_action",     "value": "pull_up"},
 }
+
+# 맥 시스템 제어 제스처 → osascript 명령 매핑
+import subprocess
+
+MAC_GESTURE_COMMANDS: dict[str, str] = {
+    "SPREAD":    'tell application "System Events" to key code 126 using control down',       # Ctrl+Up (Mission Control)
+    "GATHER":    'tell application "System Events" to key code 125 using control down',       # Ctrl+Down (Mission Control 닫기)
+    "PALM_OPEN": 'tell application "System Events" to key code 3 using {control down, command down}',  # Ctrl+Cmd+F (전체화면)
+    "FIST":      'tell application "System Events" to key code 46 using command down',        # Cmd+M (최소화)
+    "PUSH_DOWN": 'tell application "System Events" to key code 97 using command down',       # Cmd+F11 (Show Desktop)
+    "PULL_UP":   'tell application "System Events" to key code 97 using command down',       # Cmd+F11 (Show Desktop 토글)
+}
+
+
+def _execute_mac_control(gesture: str):
+    """osascript로 맥 시스템 제어 명령을 전송한다."""
+    cmd = MAC_GESTURE_COMMANDS.get(gesture)
+    if cmd:
+        subprocess.Popen(["osascript", "-e", cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print(f"[Mac] {gesture} → {cmd.split('key code')[1].strip()}", flush=True)
+
 
 # OK 사인 판정: 엄지 끝과 검지 끝의 최대 거리 (정규화 좌표 기준)
 OK_SIGN_THRESHOLD = 0.07
@@ -55,6 +82,7 @@ TWO_HAND_DIST_HISTORY_SIZE = 10   # 거리 히스토리 버퍼 크기 (~0.33초 
 TWO_HAND_SPREAD_DELTA = 0.20      # 이 만큼 거리가 증가하면 SPREAD
 TWO_HAND_GATHER_DELTA = 0.20      # 이 만큼 거리가 감소하면 GATHER
 TWO_HAND_COOLDOWN = 1.0           # 발동 후 재발동 대기 시간 (초)
+TWO_HAND_VERTICAL_DELTA = 0.15    # y축 이동량이 이 이상이면 PUSH_DOWN/PULL_UP
 
 # 제스처 유지 시간 (초) — 이 시간 이상 같은 제스처가 유지되어야 액션 발동
 GESTURE_HOLD_SECONDS = 0.5
@@ -86,10 +114,11 @@ def _draw_hand_landmarks(frame, hand_landmarks, h, w):
 
 
 class GestureControl:
-    def __init__(self, camera_index=1, ws_url="ws://localhost:8767", test_mode=False):
+    def __init__(self, camera_index=1, ws_url="ws://localhost:8767", test_mode=False, mac_mode=False):
         self.camera_index = camera_index
         self.ws_url = ws_url
         self.test_mode = test_mode
+        self.mac_mode = mac_mode
         self._running = False
         self._thread = None
         self._loop = None
@@ -104,7 +133,8 @@ class GestureControl:
         self._last_fired_gesture: str | None = None
 
         # 두 손 모션 추적
-        self._two_hand_dist_history: list[float] = []  # wrist 간 거리 히스토리
+        self._two_hand_dist_history: list[float] = []  # wrist 간 x거리 히스토리
+        self._two_hand_y_history: list[float] = []     # wrist 평균 y좌표 히스토리
         self._two_hand_last_fire: float = 0.0          # 마지막 발동 시각
 
     # ------------------------------------------------------------------
@@ -332,6 +362,9 @@ class GestureControl:
                     action = GESTURE_ACTIONS.get(gesture, {})
                     value = action.get("value", "?")
                     print(f"[Test] 제스처: {gesture} → {value}", flush=True)
+                    # 맥 제어 모드일 때 키 이벤트 전송
+                    if self.mac_mode:
+                        _execute_mac_control(gesture)
                 else:
                     print("[Test] 제스처: (없음)", flush=True)
                 last_printed_gesture = gesture
@@ -359,6 +392,71 @@ class GestureControl:
         cv2.destroyAllWindows()
         self._running = False
 
+    def run_mac(self):
+        """맥 제어 전용 모드: GUI 없이 카메라 + 제스처 감지 → 맥 키 이벤트 전송."""
+        self._running = True
+        try:
+            import cv2
+        except ImportError:
+            print("[Mac] opencv-python이 설치되지 않았습니다. pip install opencv-python", flush=True)
+            return
+
+        try:
+            import mediapipe as mp
+            from mediapipe.tasks.python.vision import HandLandmarker, HandLandmarkerOptions, RunningMode
+            from mediapipe.tasks.python import BaseOptions
+        except ImportError:
+            print("[Mac] mediapipe가 설치되지 않았습니다. pip install mediapipe", flush=True)
+            return
+
+        options = HandLandmarkerOptions(
+            base_options=BaseOptions(model_asset_path=_MODEL_PATH),
+            running_mode=RunningMode.VIDEO,
+            num_hands=2,
+            min_hand_detection_confidence=0.7,
+            min_tracking_confidence=0.6,
+        )
+        landmarker = HandLandmarker.create_from_options(options)
+        t0 = time.monotonic()
+
+        print(f"[Mac] 카메라 {self.camera_index} 열기 시도...", flush=True)
+        cap = cv2.VideoCapture(self.camera_index)
+        if not cap.isOpened():
+            print(f"[Mac] 카메라 {self.camera_index}를 열 수 없습니다.", flush=True)
+            return
+        print(f"[Mac] 카메라 연결됨. Ctrl+C로 종료.", flush=True)
+        print("[Mac] SPREAD→Mission Control / GATHER→닫기 / PALM_OPEN→전체화면 / FIST→최소화", flush=True)
+
+        last_printed_gesture = None
+
+        while self._running:
+            ret, frame = cap.read()
+            if not ret or frame is None:
+                print("[Mac] 프레임 읽기 실패.", flush=True)
+                break
+
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            timestamp_ms = int((time.monotonic() - t0) * 1000)
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
+            results = landmarker.detect_for_video(mp_image, timestamp_ms)
+
+            gesture = self._detect_gesture(results)
+
+            # 제스처 변경 시에만 출력 + 맥 제어
+            if gesture != last_printed_gesture:
+                if gesture is not None:
+                    print(f"[Mac] 제스처: {gesture}", flush=True)
+                    _execute_mac_control(gesture)
+                else:
+                    print("[Mac] 제스처: (없음)", flush=True)
+                last_printed_gesture = gesture
+
+            time.sleep(0.033)  # ~30fps
+
+        landmarker.close()
+        cap.release()
+        self._running = False
+
     # ------------------------------------------------------------------
     # Gesture detection (single + two-hand)
     # ------------------------------------------------------------------
@@ -372,6 +470,7 @@ class GestureControl:
         """
         if not results.hand_landmarks:
             self._two_hand_dist_history.clear()
+            self._two_hand_y_history.clear()
             return None
 
         hand_list = results.hand_landmarks
@@ -385,31 +484,55 @@ class GestureControl:
                 + (wrist_0.y - wrist_1.y) ** 2
             )
 
+            # 두 손 wrist 평균 y좌표
+            avg_y = (wrist_0.y + wrist_1.y) / 2
+
             self._two_hand_dist_history.append(dist)
+            self._two_hand_y_history.append(avg_y)
             if len(self._two_hand_dist_history) > TWO_HAND_DIST_HISTORY_SIZE:
                 self._two_hand_dist_history.pop(0)
+                self._two_hand_y_history.pop(0)
 
-            # 히스토리가 충분히 쌓이면 거리 변화량 판정
+            # 히스토리가 충분히 쌓이면 변화량 판정
             now = time.monotonic()
             if (len(self._two_hand_dist_history) >= TWO_HAND_DIST_HISTORY_SIZE
                     and now - self._two_hand_last_fire >= TWO_HAND_COOLDOWN):
-                oldest = self._two_hand_dist_history[0]
-                newest = self._two_hand_dist_history[-1]
-                delta = newest - oldest
+                # x축: 거리 변화 (SPREAD/GATHER)
+                dist_delta = self._two_hand_dist_history[-1] - self._two_hand_dist_history[0]
+                # y축: 평균 위치 변화 (PUSH_DOWN/PULL_UP)
+                y_delta = self._two_hand_y_history[-1] - self._two_hand_y_history[0]
 
-                if delta >= TWO_HAND_SPREAD_DELTA:
-                    self._two_hand_dist_history.clear()
-                    self._two_hand_last_fire = now
-                    return "SPREAD"
-                elif delta <= -TWO_HAND_GATHER_DELTA:
-                    self._two_hand_dist_history.clear()
-                    self._two_hand_last_fire = now
-                    return "GATHER"
+                # 더 큰 변화를 우선 판정
+                if abs(dist_delta) >= abs(y_delta):
+                    # x축 우세 → SPREAD/GATHER
+                    if dist_delta >= TWO_HAND_SPREAD_DELTA:
+                        self._two_hand_dist_history.clear()
+                        self._two_hand_y_history.clear()
+                        self._two_hand_last_fire = now
+                        return "SPREAD"
+                    elif dist_delta <= -TWO_HAND_GATHER_DELTA:
+                        self._two_hand_dist_history.clear()
+                        self._two_hand_y_history.clear()
+                        self._two_hand_last_fire = now
+                        return "GATHER"
+                else:
+                    # y축 우세 → PUSH_DOWN/PULL_UP (y 증가 = 아래로)
+                    if y_delta >= TWO_HAND_VERTICAL_DELTA:
+                        self._two_hand_dist_history.clear()
+                        self._two_hand_y_history.clear()
+                        self._two_hand_last_fire = now
+                        return "PUSH_DOWN"
+                    elif y_delta <= -TWO_HAND_VERTICAL_DELTA:
+                        self._two_hand_dist_history.clear()
+                        self._two_hand_y_history.clear()
+                        self._two_hand_last_fire = now
+                        return "PULL_UP"
 
             return None  # 두 손 모드에서는 한 손 제스처 무시
 
         # ── 한 손 모드: 포즈 기반 ──
         self._two_hand_dist_history.clear()
+        self._two_hand_y_history.clear()
         return self._classify_gesture(hand_list[0])
 
     # ------------------------------------------------------------------
@@ -504,17 +627,32 @@ def main():
     parser.add_argument("--camera", type=int, default=1, help="카메라 인덱스 (기본 1, 맥북 카메라)")
     parser.add_argument("--ws-url", type=str, default="ws://localhost:8767", help="JARVIS WebSocket URL")
     parser.add_argument("--test", action="store_true", help="테스트 모드: WebSocket 없이 제스처 인식만 수행 (OpenCV 윈도우)")
+    parser.add_argument("--mac", action="store_true", help="맥 시스템 제어 모드: 제스처로 Mission Control, 전체화면, 최소화 등 제어")
     args = parser.parse_args()
 
-    ctrl = GestureControl(camera_index=args.camera, ws_url=args.ws_url, test_mode=args.test)
+    ctrl = GestureControl(
+        camera_index=args.camera,
+        ws_url=args.ws_url,
+        test_mode=args.test,
+        mac_mode=args.mac,
+    )
 
     if args.test:
-        print(f"[Gesture] 테스트 모드 시작 (camera={args.camera})", flush=True)
+        print(f"[Gesture] 테스트 모드 시작 (camera={args.camera}, mac={args.mac})", flush=True)
         print("[Gesture] 한 손: PALM_OPEN / FIST / OK_SIGN / PEACE", flush=True)
         print("[Gesture] 두 손: SPREAD (벌리기) / GATHER (모으기)", flush=True)
+        if args.mac:
+            print("[Gesture] 맥 제어 활성화: SPREAD→Mission Control / GATHER→닫기 / PALM→전체화면 / FIST→최소화", flush=True)
         print("[Gesture] 'q' 키로 종료", flush=True)
         try:
             ctrl.run_test()
+        except KeyboardInterrupt:
+            pass
+        print("[Gesture] 완료.", flush=True)
+    elif args.mac:
+        print(f"[Gesture] 맥 제어 모드 시작 (camera={args.camera})", flush=True)
+        try:
+            ctrl.run_mac()
         except KeyboardInterrupt:
             pass
         print("[Gesture] 완료.", flush=True)
