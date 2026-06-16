@@ -37,3 +37,9 @@ dist/
 # Windows build
 whisperflow_windows.zip
 whisperflow_windows/
+
+# Claude Code (로컬 설정 + worktree)
+.claude/
+
+# YOLO 모델 가중치 (ultralytics 자동 다운로드, 커밋 불필요)
+*.pt

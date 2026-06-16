@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#00d4ff" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#001020" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="180" height="180" rx="40" fill="#0a0a1a"/>
+  <circle cx="90" cy="90" r="70" fill="url(#glow)"/>
+  <circle cx="90" cy="90" r="50" fill="none" stroke="#00d4ff" stroke-width="2" opacity="0.5"/>
+  <circle cx="90" cy="90" r="35" fill="none" stroke="#00d4ff" stroke-width="1.5" opacity="0.3"/>
+  <circle cx="90" cy="90" r="12" fill="#00d4ff" opacity="0.9"/>
+  <circle cx="90" cy="90" r="6" fill="#ffffff" opacity="0.8"/>
+  <text x="90" y="155" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="14" font-weight="bold" fill="#00d4ff" letter-spacing="3" opacity="0.7">JARVIS</text>
+</svg>

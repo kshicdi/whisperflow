@@ -21,6 +21,8 @@ async def send_message(msg_type: str, value: str):
         import websockets
         async with websockets.connect(WS_URL, close_timeout=2, open_timeout=2) as ws:
             await ws.send(json.dumps({"type": msg_type, "value": value}))
+            # 서버가 메시지를 처리할 시간 확보 후 정상 종료
+            await asyncio.sleep(0.2)
     except Exception:
         # Server not running - silently ignore
         pass

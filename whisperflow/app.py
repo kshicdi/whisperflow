@@ -3,6 +3,7 @@
 import rumps
 import sys
 import os
+import json
 import datetime
 import threading
 import pyperclip
@@ -104,6 +105,8 @@ class WhisperFlowApp(rumps.App):
                 self.ws_server = WhisperFlowWSServer()
                 self.ws_server._on_remote_record = self._handle_remote_record
                 self.ws_server._on_conversation_continue = self.enter_conversation_mode
+                self.ws_server._on_chat_tts = self._handle_chat_tts
+                self.ws_server._on_tts_interrupt = self._handle_tts_interrupt
                 self.ws_server.start()
             else:
                 self.ws_server = None
@@ -111,6 +114,9 @@ class WhisperFlowApp(rumps.App):
         except Exception as e:
             self.ws_server = None
             log(f"[WS] 서버 초기화 실패 (무시): {e}")
+
+        # Qwen TTS 서버 자동 시작
+        self._start_qwen_tts_server()
 
         # 컴포넌트 초기화
         self.recorder = AudioRecorder(
@@ -139,6 +145,13 @@ class WhisperFlowApp(rumps.App):
         # 제스처 컨트롤 인스턴스
         self.gesture_control = None
 
+        # 제스처 컨트롤 서브프로세스 (메뉴바 토글 — 카메라 미리보기 창 포함)
+        self.gesture_proc = None
+        self._gesture_timer = None
+        # 앱 종료 시 제스처 서브프로세스 정리 (드래그 버튼 잠김 방지)
+        import atexit
+        atexit.register(self._stop_gesture_proc)
+
         # 상시 청취 인스턴스
         self.always_listen = None
 
@@ -152,6 +165,11 @@ class WhisperFlowApp(rumps.App):
 
         # 단축키 리스닝 시작
         self.hotkey_manager.start()
+
+        # 드라이브 모드가 켜져있으면 상시 청취 자동 시작
+        if (Path.home() / ".whisperflow_auto_tts").exists():
+            self._start_always_listen(skip_boot_wait=True)
+            log("[TTS] 드라이브 모드 자동 시작 (이전 세션 유지)")
 
     def _setup_menu(self) -> None:
         """메뉴 항목 설정"""
@@ -329,6 +347,20 @@ class WhisperFlowApp(rumps.App):
         roleplay_file = Path(self.JARVIS_ROLEPLAY_FILE)
         self.jarvis_shoot_item.state = 1 if (youtube_file.exists() and roleplay_file.exists()) else 0
 
+        # 제스처 컨트롤 토글
+        self.gesture_item = rumps.MenuItem(
+            "🖐 제스처 컨트롤",
+            callback=self._toggle_gesture_control
+        )
+        self.gesture_item.state = 0
+
+        # Hue 조명 연동 토글
+        self.hue_item = rumps.MenuItem(
+            "💡 Hue 조명 연동",
+            callback=self._toggle_hue
+        )
+        self.hue_item.state = 1 if self.ws_server and self.ws_server._hue._config.get("enabled", True) else 0
+
         self.menu = [
             rumps.MenuItem("녹음 시작/중지", callback=self._menu_toggle_recording),
             None,  # 구분선
@@ -342,6 +374,8 @@ class WhisperFlowApp(rumps.App):
             self.history_menu,
             self.tts_menu,
             self.auto_enter_item,
+            self.gesture_item,
+            self.hue_item,
             None,
             rumps.MenuItem("JARVIS UI", callback=self._open_jarvis_ui),
             None,
@@ -479,6 +513,126 @@ class WhisperFlowApp(rumps.App):
                 return
             self.recorder.stop_recording()
 
+    _chat_conv_timer = None
+    _chat_conv_lock = threading.Lock()
+    _tts_proc = None
+    _tts_cancelled = threading.Event()
+
+    def _handle_chat_tts(self, text: str) -> None:
+        """채팅 응답을 Qwen TTS로 읽고 WebSocket으로 오디오 전송"""
+        import random
+        self._tts_cancelled.set()
+        with self._chat_conv_lock:
+            if self._chat_conv_timer:
+                self._chat_conv_timer.cancel()
+                self._chat_conv_timer = None
+        self._tts_cancelled.clear()
+        tts_text = text[:500] if len(text) > 500 else text
+
+        def _tts_worker():
+            # 1. ack 효과음을 WebSocket tts_audio로 전송
+            try:
+                sounds_dir = Path(__file__).parent / "static" / "sounds"
+                ack_files = sorted(sounds_dir.glob("ack_*.wav"))
+                if ack_files:
+                    ack_file = random.choice(ack_files)
+                    import base64
+                    ack_b64 = base64.b64encode(ack_file.read_bytes()).decode('utf-8')
+                    self.ws_server.broadcast_raw(
+                        json.dumps({"type": "tts_audio", "value": ack_b64})
+                    )
+            except Exception as e:
+                log(f"[TTS] ack sound error: {e}")
+
+            if self._tts_cancelled.is_set():
+                return
+
+            # 2. Qwen TTS 생성 + WebSocket 전송
+            hook_path = Path.home() / ".claude" / "hooks" / "qwen_tts_speak.py"
+            tts_done = False
+            if hook_path.exists():
+                try:
+                    import urllib.request
+                    r = urllib.request.urlopen('http://localhost:9093/health', timeout=2)
+                    if r.status == 200:
+                        cmd = ["/usr/bin/python3", str(hook_path),
+                               "--no-say", "--no-play"]
+                        cmd.append(tts_text)
+                        proc = subprocess.Popen(
+                            cmd,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL
+                        )
+                        self._tts_proc = proc
+                        proc.wait(timeout=120)
+                        self._tts_proc = None
+                        tts_done = True
+                except Exception:
+                    self._tts_proc = None
+                    self._start_qwen_tts_server()
+
+            if self._tts_cancelled.is_set():
+                return
+
+            if not tts_done:
+                tts_reader.speak(tts_text)
+
+            # 3. TTS 완료 → 대화 모드 진입 (PC/모바일 통합)
+            try:
+                self.ws_server.broadcast_raw(
+                    json.dumps({"type": "tts_done"})
+                )
+            except Exception as e:
+                log(f"[TTS] tts_done broadcast error: {e}")
+            self._enter_post_tts_conversation()
+
+        threading.Thread(target=_tts_worker, daemon=True).start()
+
+    def _enter_post_tts_conversation(self) -> None:
+        """TTS 완료 후 대화 모드 — always_listen 유무 관계없이 통합 처리"""
+        if self.always_listen:
+            self.always_listen.enter_conversation_mode()
+        self._ws_broadcast("broadcast_state", "recording")
+        log("[채팅TTS] 대화 모드 진입")
+        if not self.always_listen:
+            with self._chat_conv_lock:
+                if self._chat_conv_timer:
+                    self._chat_conv_timer.cancel()
+                self._chat_conv_timer = threading.Timer(
+                    10.0, self._on_chat_conversation_end)
+                self._chat_conv_timer.daemon = True
+                self._chat_conv_timer.start()
+
+    def _on_chat_conversation_end(self) -> None:
+        """채팅 대화 모드 타임아웃 (always_listen 미실행 시)"""
+        log("[채팅TTS] 대화 모드 타임아웃 → 대기 모드")
+        try:
+            import base64
+            sound_path = Path(__file__).parent / "static" / "sounds" / "standby.wav"
+            if sound_path.exists():
+                b64 = base64.b64encode(sound_path.read_bytes()).decode('utf-8')
+                self.ws_server.broadcast_raw(
+                    json.dumps({"type": "tts_audio", "value": b64})
+                )
+        except Exception:
+            pass
+        self._ws_broadcast("broadcast_state", "idle")
+
+    def _handle_tts_interrupt(self) -> None:
+        """모바일에서 TTS 중단 요청 — TTS 프로세스 종료 + recording 전환"""
+        log("[TTS] 인터럽트 수신 — TTS 중단")
+        self._tts_cancelled.set()
+        if self._tts_proc:
+            try:
+                self._tts_proc.terminate()
+            except Exception:
+                pass
+        with self._chat_conv_lock:
+            if self._chat_conv_timer:
+                self._chat_conv_timer.cancel()
+                self._chat_conv_timer = None
+        self._ws_broadcast("broadcast_state", "recording")
+
     _remote_recording = False  # 원격 녹음 여부 플래그
 
     def _handle_remote_record(self, data: dict) -> None:
@@ -521,6 +675,27 @@ class WhisperFlowApp(rumps.App):
                 # 녹음 시작 전 현재 활성 앱 저장
                 TextOutput.save_active_app()
                 self.recorder.start_recording()
+
+    def _start_qwen_tts_server(self) -> None:
+        """Qwen TTS 서버가 안 떠있으면 백그라운드로 시작"""
+        try:
+            import urllib.request
+            urllib.request.urlopen('http://localhost:9093/health', timeout=2)
+            log("[TTS] Qwen TTS 서버 이미 실행 중")
+        except Exception:
+            venv_python = "/Users/USER/Documents/qwen3-tts-apple-silicon/.venv/bin/python"
+            serve_script = "/Users/USER/Documents/qwen3-tts-apple-silicon/serve.py"
+            if os.path.exists(serve_script):
+                try:
+                    subprocess.Popen(
+                        [venv_python, serve_script, "--port", "9093"],
+                        stdout=open("/tmp/qwen_tts_server.log", "a"),
+                        stderr=subprocess.STDOUT,
+                        start_new_session=True
+                    )
+                    log("[TTS] Qwen TTS 서버 자동 시작")
+                except Exception as e:
+                    log(f"[TTS] Qwen TTS 서버 시작 실패: {e}")
 
     def _ws_broadcast(self, method: str, *args) -> None:
         """ws_server 브로드캐스트를 안전하게 호출 (ws_server가 None이거나 예외 시 무시)"""
@@ -742,6 +917,15 @@ class WhisperFlowApp(rumps.App):
         if self.always_listen and os.path.exists(sound_path):
             self._ws_broadcast("broadcast_state", "tts_playing")
             self.always_listen.mute()
+            try:
+                import base64
+                with open(sound_path, 'rb') as f:
+                    b64 = base64.b64encode(f.read()).decode('utf-8')
+                self.ws_server.broadcast_raw(
+                    json.dumps({"type": "tts_audio", "value": b64})
+                )
+            except Exception:
+                pass
             subprocess.Popen(["afplay", sound_path]).wait()
             time.sleep(0.2)
             if self.always_listen:
@@ -750,6 +934,10 @@ class WhisperFlowApp(rumps.App):
 
     def enter_conversation_mode(self) -> None:
         """외부에서 대화 모드 진입 요청 (TTS 완료 후 호출)"""
+        # 드라이브 모드인데 always_listen이 안 떠있으면 자동 시작
+        if not self.always_listen and (Path.home() / ".whisperflow_auto_tts").exists():
+            self._start_always_listen(skip_boot_wait=True)
+            log("[상시청취] 드라이브 모드 감지 — 상시 청취 자동 시작")
         if self.always_listen:
             self.always_listen.enter_conversation_mode()
             self._ws_broadcast("broadcast_state", "recording")
@@ -766,14 +954,34 @@ class WhisperFlowApp(rumps.App):
         if self.ws_server:
             self.ws_server.broadcast_audio_level(float(level))
 
+    def _kill_tts(self) -> None:
+        """실행 중인 TTS 프로세스(afplay, say, qwen_tts_speak)를 즉시 강제 종료"""
+        # 플래그 파일 제거
+        Path("/tmp/whisperflow-tts-playing").unlink(missing_ok=True)
+        # pkill -9로 즉시 강제 종료
+        for pattern in ["afplay", "qwen_tts_speak"]:
+            try:
+                subprocess.run(["pkill", "-9", "-f", pattern], capture_output=True, timeout=1)
+            except Exception:
+                pass
+        # say는 정확히 매칭 (다른 프로세스 오킬 방지)
+        try:
+            subprocess.run(["pkill", "-9", "say"], capture_output=True, timeout=1)
+        except Exception:
+            pass
+        log("[TTS] 강제 중지 완료")
+
     def _on_wake_word(self) -> None:
-        """웨이크 워드 감지 → 'Yes, sir' 효과음 + JARVIS UI 리스닝 상태
+        """웨이크 워드 감지 → TTS 중지 + 'Yes, sir' 효과음 + JARVIS UI 리스닝 상태
 
         이 콜백은 _fire_wake 스레드에서 호출되므로 동기 블로킹 OK.
         효과음 재생 중 마이크 음소거 → 재생 끝나면 음소거 해제 + 녹음 버퍼/타이머 리셋.
         """
         import time
-        log("[상시청취] 헤이 자비스 감지! → Yes sir 재생 + 녹음 대기")
+
+        # 실행 중인 TTS를 즉시 중지
+        self._kill_tts()
+        log("[상시청취] 헤이 자비스 감지! → TTS 중지 + Yes sir 재생 + 녹음 대기")
 
         sound_path = os.path.join(os.path.dirname(__file__), "static", "sounds", "yes_sir.wav")
         if self.always_listen and os.path.exists(sound_path):
@@ -1058,6 +1266,76 @@ class WhisperFlowApp(rumps.App):
             library_file.unlink(missing_ok=True)
             log("[TTS] 도서관 모드 OFF")
             TextOutput.show_notification("WhisperFlow", "도서관 모드 OFF")
+
+    def _toggle_gesture_control(self, sender) -> None:
+        """제스처 컨트롤 ON/OFF 토글 — 카메라 미리보기 창과 함께 별도 프로세스로 실행.
+
+        rumps가 메인 스레드를 점유해 같은 프로세스에서는 OpenCV 창을 못 띄우므로
+        미리보기 창이 있는 테스트+맥 제어 모드를 서브프로세스로 돌린다.
+        카메라는 CLI 쪽에서 맥북 내장 카메라로 자동 감지된다.
+        """
+        # 미리보기 창에서 q로 닫은 경우 등 죽은 프로세스 정리
+        if self.gesture_proc is not None and self.gesture_proc.poll() is not None:
+            self.gesture_proc = None
+            sender.state = 0
+
+        if self.gesture_proc is not None:
+            # OFF
+            self._stop_gesture_proc()
+            sender.state = 0
+            log("[제스처] 제스처 컨트롤 OFF")
+            TextOutput.show_notification("WhisperFlow", "제스처 컨트롤 OFF")
+        else:
+            # ON
+            try:
+                project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                gesture_log = open("/tmp/whisperflow_gesture.log", "a")
+                self.gesture_proc = subprocess.Popen(
+                    [sys.executable, "-m", "whisperflow.gesture_control", "--test", "--mac"],
+                    cwd=project_root,
+                    stdout=gesture_log,
+                    stderr=gesture_log,
+                )
+                sender.state = 1
+                # 미리보기 창에서 q로 닫았을 때 토글 상태 동기화
+                self._gesture_timer = rumps.Timer(self._check_gesture_proc, 2)
+                self._gesture_timer.start()
+                log(f"[제스처] 제스처 컨트롤 ON (pid={self.gesture_proc.pid})")
+                TextOutput.show_notification("WhisperFlow", "제스처 컨트롤 ON — 미리보기 창에서 q로도 종료 가능")
+            except Exception as e:
+                log(f"[제스처] 시작 실패: {e}")
+                TextOutput.show_notification("WhisperFlow", f"제스처 컨트롤 시작 실패: {e}")
+
+    def _check_gesture_proc(self, timer) -> None:
+        """제스처 서브프로세스가 스스로 종료됐는지 감시 (q 키 등) → 토글 상태 동기화"""
+        if self.gesture_proc is None or self.gesture_proc.poll() is not None:
+            self.gesture_proc = None
+            self.gesture_item.state = 0
+            timer.stop()
+            log("[제스처] 프로세스 종료 감지 — 토글 OFF")
+
+    def _stop_gesture_proc(self) -> None:
+        """제스처 서브프로세스 종료 (SIGTERM → 드래그 해제 후 종료, 3초 내 미응답 시 강제)"""
+        if self._gesture_timer is not None:
+            self._gesture_timer.stop()
+            self._gesture_timer = None
+        if self.gesture_proc is not None:
+            if self.gesture_proc.poll() is None:
+                self.gesture_proc.terminate()
+                try:
+                    self.gesture_proc.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    self.gesture_proc.kill()
+            self.gesture_proc = None
+
+    def _toggle_hue(self, sender) -> None:
+        """Hue 조명 연동 ON/OFF 토글"""
+        sender.state = 0 if sender.state else 1
+        enabled = bool(sender.state)
+        if self.ws_server:
+            self.ws_server._hue._config["enabled"] = enabled
+        log(f"[Hue] 조명 연동 {'ON' if enabled else 'OFF'}")
+        TextOutput.show_notification("WhisperFlow", f"Hue 조명 연동 {'ON' if enabled else 'OFF'}")
 
     def _stop_tts(self, sender) -> None:
         """TTS 읽기 중지 (메뉴)"""

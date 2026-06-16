@@ -2,8 +2,15 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>JARVIS HUD - WhisperFlow</title>
+<!-- PWA / 홈 화면 추가용 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Jarvis">
+<link rel="apple-touch-icon" href="/jarvis-icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/jarvis-icon-192.png">
+<meta name="theme-color" content="#0a0a1a">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
 
@@ -65,6 +72,9 @@
     align-items: center;
     justify-content: center;
   }
+
+  /* === Mobile Status Overlay (hidden on desktop) === */
+  .mobile-status-overlay { display: none; }
 
   /* === Central Arc Reactor (60% scale) === */
   .arc-reactor {
@@ -1538,6 +1548,845 @@
     color: var(--theme);
     border-color: var(--theme);
   }
+  /* === Chat Toggle Button === */
+  .chat-slide-toggle {
+    position: absolute;
+    bottom: 100px;
+    right: 20px;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 1px solid var(--theme-03);
+    background: rgba(10, 15, 25, 0.85);
+    backdrop-filter: blur(6px);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 35;
+    transition: border-color 0.3s, background 0.3s, box-shadow 0.3s;
+  }
+
+  .chat-slide-toggle:hover {
+    border-color: var(--theme-05);
+    background: rgba(10, 15, 25, 0.95);
+    box-shadow: 0 0 15px var(--theme-01);
+  }
+
+  .chat-slide-toggle.active {
+    border-color: var(--theme);
+    background: rgba(0, 212, 255, 0.12);
+    box-shadow: 0 0 20px var(--theme-02);
+  }
+
+  .chat-slide-toggle svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: var(--theme-05);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: stroke 0.3s;
+  }
+
+  .chat-slide-toggle:hover svg,
+  .chat-slide-toggle.active svg {
+    stroke: var(--theme);
+  }
+
+  .chat-slide-badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #ff3b3b;
+    box-shadow: 0 0 6px rgba(255, 59, 59, 0.6);
+    display: none;
+    animation: badge-pulse 1.5s ease-in-out infinite;
+  }
+
+  .chat-slide-badge.visible {
+    display: block;
+  }
+
+  @keyframes badge-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(0.85); }
+  }
+
+  /* === Chat Slide Panel === */
+  .chat-slide-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 400px;
+    height: 100vh;
+    background: rgba(10, 15, 25, 0.95);
+    backdrop-filter: blur(12px);
+    border-left: 1px solid var(--theme-03);
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+  }
+
+  .chat-slide-panel.open {
+    transform: translateX(0);
+  }
+
+  /* ============================================================
+     MOBILE: Tactical Command Interface
+     Split layout — mini HUD header + always-visible chat feed
+     ============================================================ */
+  /* ===== Ghost Reactor pulse animation ===== */
+  @keyframes ghost-pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.55; }
+  }
+
+  /* ===== Aurora border glow — dual-layer Siri-style ===== */
+  @property --glow-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+  }
+  @property --glow-angle2 {
+    syntax: '<angle>';
+    initial-value: 180deg;
+    inherits: false;
+  }
+  @keyframes auroraRotate {
+    from { --glow-angle: 0deg; }
+    to { --glow-angle: 360deg; }
+  }
+  @keyframes auroraRotateReverse {
+    from { --glow-angle2: 180deg; }
+    to { --glow-angle2: -180deg; }
+  }
+  @keyframes auroraPulse {
+    0%, 100% { opacity: 0.6; filter: blur(6px) brightness(1); }
+    50% { opacity: 1; filter: blur(8px) brightness(1.3); }
+  }
+  @keyframes auroraPulseSubtle {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.7; }
+  }
+  @keyframes auroraBreathe {
+    0%, 100% { transform: scale(1); opacity: 0.7; }
+    50% { transform: scale(1.005); opacity: 1; }
+  }
+
+  @media (max-width: 600px) {
+    /* --- Global: lock viewport, vertical flex --- */
+    html, body {
+      overflow: hidden !important;
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      background: #060a12 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      -webkit-text-size-adjust: 100% !important;
+      text-size-adjust: 100% !important;
+    }
+
+    /* --- Hide desktop-only elements --- */
+    .corner, .side-panel, .code-panel, .data-point,
+    .browser-feed, .bg-grid, .vignette, .scanlines,
+    .hud-line, .time-display, .boot-screen,
+    .boot-overlay, .zoom-overlay, .stl-overlay,
+    .conversation-log, .bottom-bar, .mic-button,
+    .chat-slide-toggle, .chat-slide-badge,
+    .status-panel {
+      display: none !important;
+    }
+
+    /* --- HUD container: vertical flex layout --- */
+    .hud-container {
+      position: fixed !important;
+      inset: 0 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      background: #060a12 !important;
+    }
+
+    /* ---- Mobile Status Overlay ---- */
+    /* Status overlay: hidden on mobile, shown inside header instead */
+    .mobile-status-overlay {
+      display: none !important;
+    }
+
+    /* ---- Ghost Reactor: full 500px canvas, CSS-scaled to 240px display ---- */
+    #particleCanvas {
+      position: fixed !important;
+      top: 40% !important;
+      left: 50% !important;
+      transform: translate(-50%, -50%) !important;
+      width: 240px !important;
+      height: 240px !important;
+      z-index: 1 !important;
+      pointer-events: none !important;
+      opacity: 0.15;
+      transition: opacity 0.8s ease, filter 0.8s ease;
+      border-radius: 50% !important;
+      overflow: hidden !important;
+    }
+    /* State: recording — entire reactor turns red */
+    .hud-container.mobile-recording #particleCanvas {
+      opacity: 0.55;
+      filter: hue-rotate(320deg) brightness(1.5) saturate(1.8);
+    }
+    .hud-container.mobile-recording {
+      background: radial-gradient(circle at 50% 40%, rgba(255,40,40,0.06) 0%, #060a12 60%) !important;
+    }
+    /* State: thinking — bright cyan */
+    .hud-container.mobile-thinking #particleCanvas {
+      opacity: 0.55;
+    }
+    .hud-container.mobile-thinking {
+      background: radial-gradient(circle at 50% 40%, rgba(0,212,255,0.06) 0%, #060a12 60%) !important;
+    }
+    /* State: speaking — pulsing */
+    .hud-container.mobile-speaking #particleCanvas {
+      opacity: 0.4;
+      animation: ghost-pulse 2s ease-in-out infinite;
+    }
+
+    /* ---- Aurora border glow: dual-layer system ---- */
+    /* Layer 1 (::before): sharp inner edge — the "wire" */
+    .hud-container::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 9998;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      border-radius: 0 0 55px 55px;
+      -webkit-mask:
+        linear-gradient(#000, #000) content-box,
+        linear-gradient(#000, #000);
+      mask:
+        linear-gradient(#000, #000) content-box,
+        linear-gradient(#000, #000);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      padding: 5px;
+    }
+    /* Layer 2 (::after): diffused outer glow — the "aura" */
+    .hud-container::after {
+      content: '';
+      position: fixed;
+      inset: -8px;
+      pointer-events: none;
+      z-index: 9997;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      filter: blur(12px);
+      border-radius: 0 0 63px 63px;
+      -webkit-mask:
+        linear-gradient(#000, #000) content-box,
+        linear-gradient(#000, #000);
+      mask:
+        linear-gradient(#000, #000) content-box,
+        linear-gradient(#000, #000);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      padding: 18px;
+    }
+
+    /* ======= RECORDING: red + orange + pink aurora ======= */
+    .hud-container.mobile-recording::before {
+      opacity: 1;
+      background:
+        conic-gradient(from var(--glow-angle, 0deg) at 50% 50%,
+          rgba(255, 30, 60, 0.9) 0deg,
+          rgba(255, 120, 40, 1) 45deg,
+          rgba(255, 60, 120, 0.9) 90deg,
+          rgba(255, 30, 60, 0.3) 135deg,
+          rgba(255, 180, 60, 0.9) 180deg,
+          rgba(255, 50, 80, 1) 225deg,
+          rgba(255, 100, 150, 0.9) 270deg,
+          rgba(255, 30, 60, 0.3) 315deg,
+          rgba(255, 30, 60, 0.9) 360deg
+        );
+      animation: auroraRotate 2.5s linear infinite;
+    }
+    .hud-container.mobile-recording::after {
+      opacity: 1;
+      background:
+        conic-gradient(from var(--glow-angle2, 180deg) at 50% 50%,
+          rgba(255, 60, 80, 0.6) 0deg,
+          rgba(255, 160, 60, 0.8) 60deg,
+          rgba(255, 80, 160, 0.6) 120deg,
+          rgba(255, 40, 40, 0.2) 180deg,
+          rgba(255, 140, 80, 0.8) 240deg,
+          rgba(255, 60, 120, 0.6) 300deg,
+          rgba(255, 60, 80, 0.6) 360deg
+        );
+      animation: auroraRotateReverse 3.5s linear infinite, auroraPulse 2s ease-in-out infinite;
+    }
+
+    /* ======= THINKING: cyan + violet + blue aurora ======= */
+    .hud-container.mobile-thinking::before {
+      opacity: 1;
+      background:
+        conic-gradient(from var(--glow-angle, 0deg) at 50% 50%,
+          rgba(0, 210, 255, 0.9) 0deg,
+          rgba(120, 80, 255, 1) 45deg,
+          rgba(0, 180, 255, 0.9) 90deg,
+          rgba(80, 40, 200, 0.3) 135deg,
+          rgba(0, 240, 255, 0.9) 180deg,
+          rgba(160, 100, 255, 1) 225deg,
+          rgba(40, 140, 255, 0.9) 270deg,
+          rgba(0, 210, 255, 0.3) 315deg,
+          rgba(0, 210, 255, 0.9) 360deg
+        );
+      animation: auroraRotate 3s linear infinite;
+    }
+    .hud-container.mobile-thinking::after {
+      opacity: 1;
+      background:
+        conic-gradient(from var(--glow-angle2, 180deg) at 50% 50%,
+          rgba(0, 200, 255, 0.5) 0deg,
+          rgba(140, 60, 255, 0.7) 72deg,
+          rgba(0, 160, 255, 0.5) 144deg,
+          rgba(100, 40, 220, 0.7) 216deg,
+          rgba(0, 220, 255, 0.5) 288deg,
+          rgba(0, 200, 255, 0.5) 360deg
+        );
+      animation: auroraRotateReverse 4s linear infinite, auroraPulseSubtle 3s ease-in-out infinite;
+    }
+
+    /* ======= SPEAKING: green + cyan + blue aurora ======= */
+    .hud-container.mobile-speaking::before {
+      opacity: 1;
+      background:
+        conic-gradient(from var(--glow-angle, 0deg) at 50% 50%,
+          rgba(0, 255, 140, 0.8) 0deg,
+          rgba(0, 200, 255, 0.9) 60deg,
+          rgba(40, 180, 255, 0.8) 120deg,
+          rgba(0, 255, 160, 0.3) 180deg,
+          rgba(0, 220, 200, 0.9) 240deg,
+          rgba(60, 255, 180, 0.8) 300deg,
+          rgba(0, 255, 140, 0.8) 360deg
+        );
+      animation: auroraRotate 4s linear infinite, auroraBreathe 3s ease-in-out infinite;
+    }
+    .hud-container.mobile-speaking::after {
+      opacity: 1;
+      background:
+        conic-gradient(from var(--glow-angle2, 180deg) at 50% 50%,
+          rgba(0, 255, 160, 0.4) 0deg,
+          rgba(0, 180, 255, 0.6) 90deg,
+          rgba(0, 255, 200, 0.4) 180deg,
+          rgba(60, 200, 255, 0.6) 270deg,
+          rgba(0, 255, 160, 0.4) 360deg
+        );
+      animation: auroraRotateReverse 5s linear infinite, auroraPulseSubtle 2.5s ease-in-out infinite;
+    }
+
+    /* ---- Chat panel: always visible, fills viewport ---- */
+    .chat-slide-panel,
+    .chat-slide-panel.open {
+      position: relative !important;
+      top: auto !important; right: auto !important;
+      width: 100% !important;
+      height: auto !important;
+      flex: 1 1 0% !important;
+      min-height: 0 !important;
+      transform: none !important;
+      opacity: 1 !important;
+      pointer-events: auto !important;
+      background: transparent !important;
+      backdrop-filter: none !important;
+      border: none !important;
+      border-left: none !important;
+      z-index: 5;
+      display: flex !important;
+      flex-direction: column !important;
+    }
+
+    /* ---- Chat header: status bar with state indicator ---- */
+    .chat-slide-header {
+      height: auto !important;
+      min-height: 32px !important;
+      padding: 8px 12px 4px !important;
+      background: rgba(6,10,18,0.98) !important;
+      border-bottom: 1px solid rgba(0,212,255,0.06) !important;
+      flex-shrink: 0;
+      gap: 6px;
+      flex-wrap: nowrap;
+    }
+    .chat-slide-title {
+      font-size: 8px !important;
+      letter-spacing: 3px !important;
+      color: rgba(0,212,255,0.3) !important;
+      flex-shrink: 0;
+    }
+    /* Status text lives in the header */
+    #mobileStatusText {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 9px;
+      letter-spacing: 3px;
+      color: rgba(0,212,255,0.45);
+      transition: color 0.4s ease;
+    }
+    .hud-container.mobile-recording #mobileStatusText {
+      color: rgba(255,80,80,0.8);
+    }
+    .hud-container.mobile-thinking #mobileStatusText {
+      color: rgba(180,130,255,0.7);
+    }
+    .hud-container.mobile-speaking #mobileStatusText {
+      color: rgba(0,230,118,0.6);
+    }
+    .chat-slide-model-select {
+      font-size: 9px !important;
+      padding: 1px 6px !important;
+      height: 20px;
+      border-radius: 3px;
+      margin-left: auto;
+    }
+    .chat-slide-close {
+      display: none !important;
+    }
+
+    /* ---- Chat messages: dense, above ghost reactor ---- */
+    .chat-slide-messages {
+      flex: 1 1 0% !important;
+      min-height: 0 !important;
+      padding: 6px 10px !important;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      position: relative;
+      z-index: 5;
+    }
+
+    /* ---- Message bubbles: compact & dense ---- */
+    .chat-slide-msg {
+      max-width: 88% !important;
+      margin-bottom: 4px !important;
+    }
+    .chat-slide-msg-text {
+      font-size: 12px !important;
+      line-height: 1.4 !important;
+      padding: 5px 9px !important;
+    }
+    .chat-slide-msg-text pre,
+    .chat-slide-msg-text code {
+      font-size: 10px !important;
+    }
+    .chat-slide-msg-label {
+      font-size: 7px !important;
+      margin-bottom: 2px !important;
+      letter-spacing: 1.5px;
+    }
+    .chat-slide-msg-time {
+      font-size: 7px !important;
+    }
+    /* User bubble shape */
+    .chat-slide-msg.chat-slide-user {
+      border-radius: 8px 8px 2px 8px !important;
+    }
+    .chat-slide-user .chat-slide-msg-text {
+      background: rgba(0,212,255,0.12) !important;
+      border-color: rgba(0,212,255,0.2) !important;
+    }
+    /* AI bubble shape */
+    .chat-slide-msg.chat-slide-assistant {
+      border-radius: 8px 8px 8px 2px !important;
+    }
+
+    /* ---- Input bar: compact like mockup ---- */
+    .chat-slide-input-bar {
+      padding: 4px 14px 22px !important;
+      background: #060a12 !important;
+      border-top: 1px solid rgba(0,212,255,0.06) !important;
+      gap: 4px !important;
+      flex-shrink: 0;
+    }
+    .chat-slide-input {
+      font-size: 16px !important;
+      min-height: 34px !important;
+      padding: 6px 12px !important;
+      border-radius: 17px !important;
+      background: rgba(0,212,255,0.03) !important;
+      border: 1px solid rgba(0,212,255,0.1) !important;
+    }
+    .chat-slide-input:focus {
+      border-color: rgba(0,212,255,0.3) !important;
+    }
+    .chat-slide-send-btn,
+    .chat-slide-mic-btn {
+      width: 32px !important;
+      height: 32px !important;
+      flex-shrink: 0 !important;
+      border-radius: 50% !important;
+    }
+    .chat-slide-send-btn svg,
+    .chat-slide-mic-btn svg {
+      width: 14px !important;
+      height: 14px !important;
+    }
+    #chatAttachBtn {
+      width: 32px !important;
+      height: 32px !important;
+      flex-shrink: 0 !important;
+    }
+    .chat-slide-attach-preview {
+      padding: 4px 8px !important;
+    }
+    .chat-slide-attach-preview img {
+      max-height: 50px !important;
+    }
+  }
+
+  /* Panel Header */
+  .chat-slide-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 40px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--theme-03);
+    flex-shrink: 0;
+  }
+
+  .chat-slide-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--theme-05);
+    text-transform: uppercase;
+  }
+
+  .chat-slide-model-select {
+    background: rgba(0, 10, 20, 0.8);
+    color: var(--theme);
+    border: 1px solid var(--theme-03);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    outline: none;
+  }
+  .chat-slide-model-select:hover {
+    border-color: var(--theme-05);
+  }
+  .chat-slide-model-select option {
+    background: #0a0a1a;
+    color: #e0e0e0;
+  }
+
+  .chat-slide-close {
+    background: none;
+    border: none;
+    color: var(--theme-04);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: color 0.2s, background 0.2s;
+    line-height: 1;
+  }
+
+  .chat-slide-close:hover {
+    color: var(--theme);
+    background: rgba(0, 212, 255, 0.1);
+  }
+
+  /* Messages Area */
+  .chat-slide-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--theme-02) transparent;
+  }
+
+  .chat-slide-messages::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .chat-slide-messages::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .chat-slide-messages::-webkit-scrollbar-thumb {
+    background: var(--theme-02);
+    border-radius: 2px;
+  }
+
+  /* Message Bubbles */
+  .chat-slide-msg {
+    max-width: 85%;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    word-wrap: break-word;
+    animation: msg-slide-in 0.3s ease-out;
+  }
+
+  .chat-slide-msg.chat-slide-user {
+    align-self: flex-end;
+    background: rgba(0, 150, 200, 0.3);
+    border: 1px solid rgba(0, 180, 230, 0.35);
+    color: rgba(255, 255, 255, 0.92);
+    border-radius: 12px 12px 4px 12px;
+  }
+
+  .chat-slide-msg.chat-slide-assistant {
+    align-self: flex-start;
+    background: rgba(30, 40, 60, 0.5);
+    border: 1px solid rgba(60, 80, 120, 0.3);
+    color: rgba(255, 255, 255, 0.88);
+    border-radius: 12px 12px 12px 4px;
+  }
+
+  .chat-slide-msg.chat-slide-tool {
+    align-self: flex-start;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 11px;
+    font-family: 'Courier New', monospace;
+    max-width: 90%;
+    padding: 5px 10px;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+
+  .chat-slide-tool-summary {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .chat-slide-tool-summary::before {
+    content: '\25B6';
+    font-size: 8px;
+    transition: transform 0.2s;
+  }
+
+  .chat-slide-msg.chat-slide-tool.expanded .chat-slide-tool-summary::before {
+    transform: rotate(90deg);
+  }
+
+  .chat-slide-tool-detail {
+    display: none;
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    white-space: pre-wrap;
+    max-height: 150px;
+    overflow-y: auto;
+  }
+
+  .chat-slide-msg.chat-slide-tool.expanded .chat-slide-tool-detail {
+    display: block;
+  }
+
+  .chat-slide-msg.chat-slide-error {
+    align-self: flex-start;
+    background: rgba(255, 59, 59, 0.08);
+    border: 1px solid rgba(255, 59, 59, 0.25);
+    color: rgba(255, 100, 100, 0.9);
+    font-size: 13px;
+    border-radius: 8px;
+  }
+
+  .chat-slide-msg-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 3px;
+    color: rgba(0, 212, 255, 0.5);
+  }
+
+  .chat-slide-msg.chat-slide-assistant .chat-slide-msg-label {
+    color: rgba(0, 255, 136, 0.6);
+  }
+
+  .chat-slide-msg-text {
+    font-family: 'Rajdhani', sans-serif;
+  }
+
+  /* Markdown styles inside assistant messages */
+  .chat-slide-msg-text strong { color: rgba(255, 255, 255, 0.95); }
+  .chat-slide-msg-text em { font-style: italic; color: rgba(255, 255, 255, 0.8); }
+  .chat-slide-msg-text code {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    color: rgba(0, 212, 255, 0.8);
+  }
+  .chat-slide-msg-text pre {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 4px;
+    padding: 8px 10px;
+    margin: 6px 0;
+    overflow-x: auto;
+    font-size: 12px;
+  }
+  .chat-slide-msg-text pre code {
+    background: none;
+    padding: 0;
+    color: rgba(255, 255, 255, 0.75);
+  }
+  .chat-slide-msg-text ul {
+    margin: 4px 0;
+    padding-left: 18px;
+  }
+  .chat-slide-msg-text li {
+    margin: 2px 0;
+  }
+  .chat-slide-msg-text a {
+    color: var(--theme);
+    text-decoration: underline;
+    text-decoration-color: var(--theme-03);
+  }
+
+  .chat-slide-msg-time {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.2);
+    margin-top: 3px;
+    text-align: right;
+  }
+
+  .chat-slide-msg.chat-slide-assistant .chat-slide-msg-time {
+    text-align: left;
+  }
+
+  .chat-slide-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 13px;
+    background: #00ff88;
+    margin-left: 2px;
+    vertical-align: middle;
+    animation: blink 1s step-end infinite;
+  }
+
+  /* Input Bar */
+  .chat-slide-input-bar {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--theme-02);
+    background: rgba(0, 5, 15, 0.7);
+    flex-shrink: 0;
+  }
+
+  .chat-slide-input {
+    flex: 1;
+    background: rgba(0, 10, 20, 0.8);
+    border: 1px solid var(--theme-02);
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: rgba(255, 255, 255, 0.9);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    outline: none;
+    resize: none;
+    min-height: 36px;
+    max-height: 100px;
+    line-height: 1.4;
+    transition: border-color 0.2s;
+  }
+
+  .chat-slide-input:focus {
+    border-color: var(--theme-04);
+  }
+
+  .chat-slide-input::placeholder {
+    color: var(--theme-03);
+    font-family: 'Rajdhani', sans-serif;
+  }
+
+  .chat-slide-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .chat-slide-send-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    border: 1px solid var(--theme-03);
+    background: rgba(0, 212, 255, 0.08);
+    color: var(--theme-05);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+    flex-shrink: 0;
+  }
+
+  .chat-slide-send-btn:hover {
+    background: rgba(0, 212, 255, 0.18);
+    border-color: var(--theme-05);
+    color: var(--theme);
+  }
+
+  .chat-slide-mic-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    border: 1px solid var(--theme-03);
+    background: rgba(0, 212, 255, 0.08);
+    color: var(--theme-05);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, border-color 0.2s;
+    flex-shrink: 0;
+  }
+
+  .chat-slide-mic-btn:hover {
+    background: rgba(0, 212, 255, 0.18);
+    border-color: var(--theme-05);
+  }
+
+  .chat-slide-mic-btn.recording {
+    border-color: rgba(255, 60, 60, 0.7);
+    background: rgba(255, 60, 60, 0.15);
+    animation: mic-pulse 1.2s ease-in-out infinite;
+  }
+
+  .chat-slide-mic-btn svg,
+  .chat-slide-send-btn svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r160/three.min.js"></script>
 </head>
@@ -1606,7 +2455,7 @@
     <div class="boot-final" id="bootFinal">ALL SYSTEMS OPERATIONAL</div>
   </div>
 
-  <div class="hud-container hidden">
+  <div class="hud-container" id="hudContainer">
     <!-- Corners -->
     <div class="corner tl"></div>
     <div class="corner tr"></div>
@@ -1745,6 +2594,58 @@
         <span id="wsLabel">DISCONNECTED</span>
       </span>
       <span id="fpsDisplay">FPS 60</span>
+    </div>
+
+    <!-- Chat Toggle Button -->
+    <button class="chat-slide-toggle" id="chatSlideToggle" title="Chat">
+      <svg viewBox="0 0 24 24">
+        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+      </svg>
+      <span class="chat-slide-badge" id="chatSlideBadge"></span>
+    </button>
+
+    <!-- Chat Slide Panel -->
+    <div class="chat-slide-panel" id="chatSlidePanel">
+      <div class="chat-slide-header">
+        <span class="chat-slide-title">JARVIS</span>
+        <span id="mobileStatusText" style="display:none;">STANDBY</span>
+        <select class="chat-slide-model-select" id="chatModelSelect" title="Model">
+          <option value="haiku">Haiku</option>
+          <option value="sonnet">Sonnet</option>
+          <option value="opus">Opus</option>
+        </select>
+        <button class="chat-slide-close" id="chatSlideClose" title="Close">&times;</button>
+      </div>
+      <div class="chat-slide-messages" id="chatSlideMessages">
+        <!-- Chat messages rendered dynamically -->
+      </div>
+      <div class="chat-slide-attach-preview" id="chatAttachPreview" style="display:none;">
+        <img id="chatAttachImg" style="max-height:80px;border-radius:4px;margin:4px 8px;">
+        <button id="chatAttachRemove" style="background:none;border:none;color:#f44;cursor:pointer;font-size:16px;" title="Remove">&times;</button>
+      </div>
+      <div class="chat-slide-input-bar">
+        <input type="file" id="chatFileInput" accept="image/*" style="display:none;">
+        <button class="chat-slide-mic-btn" id="chatAttachBtn" title="Attach Image" style="margin-right:4px;">
+          <svg viewBox="0 0 24 24" style="width:18px;height:18px;">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <textarea class="chat-slide-input" id="chatSlideInput" placeholder="Enter message..." rows="1"></textarea>
+        <button class="chat-slide-mic-btn" id="chatSlideMicBtn" title="Voice Input">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/>
+            <line x1="8" y1="23" x2="16" y2="23"/>
+          </svg>
+        </button>
+        <button class="chat-slide-send-btn" id="chatSlideSendBtn" title="Send">
+          <svg viewBox="0 0 24 24">
+            <line x1="12" y1="19" x2="12" y2="5"/>
+            <polyline points="5 12 12 5 19 12"/>
+          </svg>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -2000,7 +2901,10 @@
     // ============================================================
     //  CONFIGURATION
     // ============================================================
-    const WS_URL = 'ws://' + window.location.hostname + ':8767';
+    // Auto-detect protocol: wss for HTTPS (Tailscale proxy), ws for HTTP (local)
+    const WS_URL = window.location.protocol === 'https:'
+      ? 'wss://' + window.location.host
+      : 'ws://' + window.location.hostname + ':8767';
     const RECONNECT_INTERVAL = 2000;
     const BAR_COUNT = 72;
 
@@ -2035,28 +2939,95 @@
     let durationTimer = null;
     let frameCount = 0;
     let lastFpsTime = performance.now();
-    let ttsAudioQueue = [];
+    let ttsAudioQueue = [];  // queue of ArrayBuffer
     let ttsAudioPlaying = false;
+    let _pendingListenAfterTts = false;
+    let _ttsAudioCtx = null;
+    let _ttsAudioEl = null;
+    let _ttsAudioUnlocked = false;
+
+    // iOS Safari: unlock AudioContext on first user gesture
+    function getTtsAudioCtx() {
+      if (!_ttsAudioCtx) {
+        _ttsAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (_ttsAudioCtx.state === 'suspended' || _ttsAudioCtx.state === 'interrupted') {
+        _ttsAudioCtx.resume();
+      }
+      return _ttsAudioCtx;
+    }
+
+    function getTtsAudioEl() {
+      if (!_ttsAudioEl) {
+        _ttsAudioEl = new Audio();
+        _ttsAudioEl.volume = 1.0;
+      }
+      return _ttsAudioEl;
+    }
+
+    function unlockTtsAudio() {
+      // Unlock AudioContext only if not already running
+      const ctx = getTtsAudioCtx();
+      if (ctx.state !== 'running') {
+        const buf = ctx.createBuffer(1, 1, 22050);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(ctx.destination);
+        src.start(0);
+      }
+
+      // Unlock HTML5 Audio element once — don't disturb active TTS
+      if (!_ttsAudioUnlocked) {
+        const el = getTtsAudioEl();
+        el.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=';
+        el.play().then(() => {
+          _ttsAudioUnlocked = true;
+          console.log('[TTS Audio] Element unlocked');
+        }).catch(() => {});
+      }
+    }
+    document.addEventListener('touchstart', unlockTtsAudio);
+    document.addEventListener('click', unlockTtsAudio);
 
     function playNextTtsChunk() {
       if (ttsAudioQueue.length === 0) {
         ttsAudioPlaying = false;
+        // TTS 재생 완료 → 대기 중이던 음성 입력 시작
+        if (_pendingListenAfterTts && isMobileView && !webSpeechActive) {
+          _pendingListenAfterTts = false;
+          if (!webSpeechRecognition) webSpeechRecognition = initWebSpeech();
+          if (webSpeechRecognition) {
+            try { webSpeechRecognition.start(); } catch(e) {}
+          }
+        }
         return;
       }
       ttsAudioPlaying = true;
-      const url = ttsAudioQueue.shift();
-      const audio = new Audio(url);
-      audio.onended = () => {
+      const arrayBuf = ttsAudioQueue.shift();
+      const blob = new Blob([arrayBuf], { type: 'audio/wav' });
+      const url = URL.createObjectURL(blob);
+      const el = getTtsAudioEl();
+
+      const cleanup = () => {
+        el.onended = null;
+        el.onerror = null;
         URL.revokeObjectURL(url);
+      };
+
+      el.onended = () => {
+        cleanup();
         playNextTtsChunk();
       };
-      audio.onerror = () => {
-        URL.revokeObjectURL(url);
+      el.onerror = (e) => {
+        console.error('[TTS] playback error:', e);
+        cleanup();
         playNextTtsChunk();
       };
-      audio.play().catch(e => {
-        console.error('tts_audio play error:', e);
-        URL.revokeObjectURL(url);
+      el.src = url;
+      el.play().catch((err) => {
+        console.error('[TTS] play() rejected:', err);
+        cleanup();
+        ttsAudioPlaying = false;
         playNextTtsChunk();
       });
     }
@@ -2084,14 +3055,20 @@
     const CONNECTION_DIST = 60;
     const particles = [];
 
-    // HiDPI support
+    // HiDPI support + mobile sizing
     function resizeParticleCanvas() {
       const dpr = window.devicePixelRatio || 1;
-      pCanvas.width = 500 * dpr;
-      pCanvas.height = 500 * dpr;
+      const isMobile = window.innerWidth <= 600;
+      const size = 500; // Always render at full resolution, CSS handles display size
+      pCanvas.style.width = size + 'px';
+      pCanvas.style.height = size + 'px';
+      pCanvas.width = size * dpr;
+      pCanvas.height = size * dpr;
+      pCtx.setTransform(1, 0, 0, 1, 0, 0);
       pCtx.scale(dpr, dpr);
     }
     resizeParticleCanvas();
+    window.addEventListener('resize', resizeParticleCanvas);
 
     // Create particles in a circular distribution
     for (let i = 0; i < PARTICLE_COUNT; i++) {
@@ -2674,6 +3651,10 @@
           hud.classList.remove('hidden');
           hud.classList.add('reveal');
         }
+        // Request session list from server
+        requestSessionList();
+        // Request chat history from server (sync across devices)
+        ws.send(JSON.stringify({ type: 'chat_history_request', tab_id: ASSISTANT_TAB_ID }));
       };
 
       ws.onclose = () => {
@@ -2710,22 +3691,34 @@
         case 'state': {
           const newState = msg.value || 'idle';
           if (THEMES[newState] && newState !== currentState) {
-            currentState = newState;
-            applyTheme(currentState);
+            setUIState(newState);
 
-            if (currentState === 'recording') {
-              // 녹음 시작 → LISTENING 메시지 표시
+            if (newState === 'recording') {
               showListening();
-            } else if (currentState === 'processing') {
-              // 녹음 끝 → LISTENING 파형 정지 (텍스트는 transcript에서 교체)
+              // Mobile: TTS 재생 완료 후 Web Speech 시작
+              if (isMobileView && !webSpeechActive) {
+                if (ttsAudioPlaying || ttsAudioQueue.length > 0) {
+                  _pendingListenAfterTts = true;
+                } else {
+                  if (!webSpeechRecognition) webSpeechRecognition = initWebSpeech();
+                  if (webSpeechRecognition) {
+                    try { webSpeechRecognition.start(); } catch(e) {}
+                  }
+                }
+              }
+            } else if (newState === 'processing') {
               if (listeningWaveform && activeWaveformCanvas === listeningWaveform) {
                 stopWaveformAnim();
               }
-            } else if (currentState === 'idle') {
+            } else if (newState === 'idle') {
               targetAudioLevel = 0;
               stopActiveTyping();
               stopWaveformAnim();
               activeOutputMsg = null;
+              // Mobile: 서버가 idle 브로드캐스트하면 Web Speech 중지
+              if (isMobileView && webSpeechActive) {
+                stopWebSpeech();
+              }
             }
           }
           break;
@@ -2758,8 +3751,7 @@
             } else {
               addMessage('user', msg.value);
             }
-            currentState = 'thinking';
-            applyTheme('thinking');
+            setUIState('thinking');
           }
           break;
         }
@@ -2959,15 +3951,14 @@
 
         case 'tts_audio': {
           if (msg.value) {
+            console.log('[TTS] Received tts_audio, size:', msg.value.length, 'unlocked:', _ttsAudioUnlocked);
             try {
               const binary = atob(msg.value);
               const bytes = new Uint8Array(binary.length);
               for (let i = 0; i < binary.length; i++) {
                 bytes[i] = binary.charCodeAt(i);
               }
-              const blob = new Blob([bytes], { type: 'audio/wav' });
-              const url = URL.createObjectURL(blob);
-              ttsAudioQueue.push(url);
+              ttsAudioQueue.push(bytes.buffer);
               if (!ttsAudioPlaying) {
                 playNextTtsChunk();
               }
@@ -2978,6 +3969,11 @@
           break;
         }
 
+        case 'tts_done': {
+          // 서버가 이후 recording 상태를 브로드캐스트 → state 핸들러에서 처리
+          break;
+        }
+
         case 'stl_view': {
           stlViewerOpen(msg.value, msg.label);
           break;
@@ -2985,6 +3981,56 @@
 
         case 'stl_close': {
           stlViewerClose();
+          break;
+        }
+
+        // ---- Chat messages (single session) ----
+        case 'chat_chunk': {
+          if (msg.content != null) {
+            appendToAssistantMessage(msg.content, msg.chunk_type);
+          }
+          break;
+        }
+
+        case 'chat_done': {
+          finalizeAssistantMessage();
+          break;
+        }
+
+        case 'chat_error': {
+          if (msg.error) {
+            addChatMessage('error', msg.error);
+            isStreaming = false;
+            chatSlideInput.disabled = false;
+            chatSlideInput.placeholder = 'Enter message...';
+          }
+          break;
+        }
+
+        case 'chat_history': {
+          if (msg.messages && Array.isArray(msg.messages)) {
+            chatMessages = msg.messages;
+            renderAllChatMessages();
+          }
+          break;
+        }
+
+        case 'chat_tool': {
+          if (msg.content) {
+            addChatMessage('tool', msg.content);
+          }
+          break;
+        }
+
+        case 'file_uploaded': {
+          handleFileUploaded(msg);
+          break;
+        }
+
+        // Legacy session messages - ignore silently
+        case 'session_list_response':
+        case 'session_created':
+        case 'session_deleted': {
           break;
         }
 
@@ -3422,11 +4468,7 @@
     // ============================================================
     if (micButton) {
       micButton.addEventListener('click', () => {
-        // iOS 오디오 세션 unlock — 터치 이벤트 안에서 재생해야 유효
-        try {
-          const silence = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=');
-          silence.play().catch(() => {});
-        } catch(e) {}
+        unlockTtsAudio();
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'remote_record', value: 'toggle' }));
         }
@@ -3434,10 +4476,599 @@
     }
 
     // ============================================================
+    //  CHAT PANEL (Single Session - Toggle Slide)
+    // ============================================================
+    const ASSISTANT_TAB_ID = 'main_assistant';
+    const isMobileView = window.innerWidth <= 600;
+    let chatPanelOpen = isMobileView;  // Always open on mobile
+    let chatMessages = [];  // [{role, content, timestamp, _streaming}]
+    let isStreaming = false;
+
+    const chatSlideToggle = $('chatSlideToggle');
+    const chatSlidePanel = $('chatSlidePanel');
+    const chatSlideClose = $('chatSlideClose');
+    const chatSlideMessagesEl = $('chatSlideMessages');
+    const chatSlideInput = $('chatSlideInput');
+    const chatSlideSendBtn = $('chatSlideSendBtn');
+    const chatSlideMicBtn = $('chatSlideMicBtn');
+    const chatSlideBadge = $('chatSlideBadge');
+
+    // On mobile, always show chat panel + show status text
+    if (isMobileView) {
+      chatSlidePanel.classList.add('open');
+      const mst = document.getElementById('mobileStatusText');
+      if (mst) mst.style.display = 'inline';
+    }
+
+    // ---- Toggle Panel ----
+    function toggleChatPanel() {
+      chatPanelOpen = !chatPanelOpen;
+      chatSlidePanel.classList.toggle('open', chatPanelOpen);
+      chatSlideToggle.classList.toggle('active', chatPanelOpen);
+      if (chatPanelOpen) {
+        chatSlideInput.focus();
+        hideChatBadge();
+        chatSlideMessagesEl.scrollTop = chatSlideMessagesEl.scrollHeight;
+      }
+    }
+
+    function closeChatPanel() {
+      chatPanelOpen = false;
+      chatSlidePanel.classList.remove('open');
+      chatSlideToggle.classList.remove('active');
+    }
+
+    function showChatBadge() {
+      chatSlideBadge.classList.add('visible');
+    }
+
+    function hideChatBadge() {
+      chatSlideBadge.classList.remove('visible');
+    }
+
+    // ---- Markdown Renderer (simple) ----
+    function renderMarkdown(text) {
+      // Escape HTML first
+      let html = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      // Code blocks
+      html = html.replace(/```([\s\S]*?)```/g, (_, code) => {
+        return '<pre><code>' + code.trim() + '</code></pre>';
+      });
+      // Inline code
+      html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+      // Bold
+      html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      // Italic
+      html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+      // List items
+      html = html.replace(/^- (.+)/gm, '<li>$1</li>');
+      html = html.replace(/(<li>[\s\S]*?<\/li>)/g, '<ul>$1</ul>');
+      // Remove duplicate nested <ul> tags
+      html = html.replace(/<\/ul>\s*<ul>/g, '');
+      // Line breaks (but not inside pre blocks)
+      html = html.replace(/(?<!<\/pre>)\n(?!<pre>)/g, '<br>');
+
+      return html;
+    }
+
+    // ---- Format Time ----
+    function formatChatTime(ts) {
+      const d = new Date(ts);
+      return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+    }
+
+    // ---- Add Message ----
+    function addChatMessage(role, content) {
+      const msg = { role, content, timestamp: Date.now() };
+      chatMessages.push(msg);
+      appendMessageElement(msg);
+      saveChatMessages();
+      chatSlideMessagesEl.scrollTop = chatSlideMessagesEl.scrollHeight;
+    }
+
+    // ---- Render Single Message Element ----
+    function appendMessageElement(msg) {
+      const el = document.createElement('div');
+      el.className = 'chat-slide-msg chat-slide-' + msg.role;
+
+      if (msg.role === 'user') {
+        const label = document.createElement('div');
+        label.className = 'chat-slide-msg-label';
+        label.textContent = 'YOU';
+        const text = document.createElement('div');
+        text.className = 'chat-slide-msg-text';
+        text.textContent = msg.content;
+        const time = document.createElement('div');
+        time.className = 'chat-slide-msg-time';
+        time.textContent = formatChatTime(msg.timestamp);
+        el.appendChild(label);
+        el.appendChild(text);
+        el.appendChild(time);
+      } else if (msg.role === 'assistant') {
+        const label = document.createElement('div');
+        label.className = 'chat-slide-msg-label';
+        label.textContent = 'JARVIS';
+        const text = document.createElement('div');
+        text.className = 'chat-slide-msg-text';
+        text.innerHTML = renderMarkdown(msg.content);
+        const time = document.createElement('div');
+        time.className = 'chat-slide-msg-time';
+        time.textContent = formatChatTime(msg.timestamp);
+        el.appendChild(label);
+        el.appendChild(text);
+        el.appendChild(time);
+      } else if (msg.role === 'tool') {
+        const summary = document.createElement('div');
+        summary.className = 'chat-slide-tool-summary';
+        const shortContent = msg.content.length > 60 ? msg.content.substring(0, 60) + '...' : msg.content;
+        summary.textContent = shortContent;
+        const detail = document.createElement('div');
+        detail.className = 'chat-slide-tool-detail';
+        detail.textContent = msg.content;
+        el.appendChild(summary);
+        el.appendChild(detail);
+        el.addEventListener('click', () => el.classList.toggle('expanded'));
+      } else if (msg.role === 'error') {
+        el.textContent = msg.content;
+      }
+
+      chatSlideMessagesEl.appendChild(el);
+    }
+
+    // ---- Render All Messages ----
+    function renderAllChatMessages() {
+      chatSlideMessagesEl.innerHTML = '';
+      chatMessages.forEach(msg => appendMessageElement(msg));
+      chatSlideMessagesEl.scrollTop = chatSlideMessagesEl.scrollHeight;
+    }
+
+    // ---- Streaming Assistant Message ----
+    function appendToAssistantMessage(content, chunkType) {
+      const lastMsg = chatMessages[chatMessages.length - 1];
+      if (lastMsg && lastMsg.role === 'assistant' && lastMsg._streaming) {
+        lastMsg.content += content;
+      } else {
+        const msg = { role: chunkType || 'assistant', content, timestamp: Date.now(), _streaming: true };
+        chatMessages.push(msg);
+      }
+
+      isStreaming = true;
+
+      // Incremental DOM update
+      const lastEl = chatSlideMessagesEl.lastElementChild;
+      if (lastEl && lastEl.classList.contains('chat-slide-assistant')) {
+        const textEl = lastEl.querySelector('.chat-slide-msg-text');
+        if (textEl) {
+          textEl.innerHTML = renderMarkdown(chatMessages[chatMessages.length - 1].content);
+          // Ensure cursor exists
+          if (!lastEl.querySelector('.chat-slide-cursor')) {
+            const cursor = document.createElement('span');
+            cursor.className = 'chat-slide-cursor';
+            textEl.appendChild(cursor);
+          }
+        }
+      } else {
+        // First chunk - create element
+        const msg = chatMessages[chatMessages.length - 1];
+        const el = document.createElement('div');
+        el.className = 'chat-slide-msg chat-slide-assistant';
+        const label = document.createElement('div');
+        label.className = 'chat-slide-msg-label';
+        label.textContent = 'JARVIS';
+        const text = document.createElement('div');
+        text.className = 'chat-slide-msg-text';
+        text.innerHTML = renderMarkdown(msg.content);
+        const cursor = document.createElement('span');
+        cursor.className = 'chat-slide-cursor';
+        text.appendChild(cursor);
+        el.appendChild(label);
+        el.appendChild(text);
+        chatSlideMessagesEl.appendChild(el);
+      }
+      chatSlideMessagesEl.scrollTop = chatSlideMessagesEl.scrollHeight;
+    }
+
+    function finalizeAssistantMessage() {
+      const lastMsg = chatMessages[chatMessages.length - 1];
+      if (lastMsg && lastMsg._streaming) {
+        delete lastMsg._streaming;
+      }
+
+      isStreaming = false;
+
+      // HUD state: back to idle + mobile ghost reactor dim
+      setUIState('idle');
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'state', value: 'idle' }));
+      }
+
+      // Remove cursor
+      const cursor = chatSlideMessagesEl.querySelector('.chat-slide-cursor');
+      if (cursor) cursor.remove();
+
+      // Add time to last assistant message
+      const lastEl = chatSlideMessagesEl.lastElementChild;
+      if (lastEl && lastEl.classList.contains('chat-slide-assistant') && !lastEl.querySelector('.chat-slide-msg-time')) {
+        const time = document.createElement('div');
+        time.className = 'chat-slide-msg-time';
+        time.textContent = formatChatTime(lastMsg ? lastMsg.timestamp : Date.now());
+        lastEl.appendChild(time);
+      }
+
+      // Re-enable input
+      chatSlideInput.disabled = false;
+      chatSlideInput.placeholder = 'Enter message...';
+
+      saveChatMessages();
+
+      // Badge if panel is closed
+      if (!chatPanelOpen) showChatBadge();
+    }
+
+    // ---- Send Message ----
+    function sendChatMessage() {
+      const text = chatSlideInput.value.trim();
+      if ((!text && !pendingImagePath) || isStreaming) return;
+
+      addChatMessage('user', text);
+
+      // Include image path if attached - instruct Claude to use Read tool
+      let msgText = text;
+      if (pendingImagePath) {
+        const userMsg = text || '이 이미지를 분석해줘';
+        msgText = `다음 이미지 파일을 Read 도구로 열어서 분석해줘: ${pendingImagePath}\n\n${userMsg}`;
+        pendingImagePath = null;
+        chatAttachPreview.style.display = 'none';
+        chatFileInput.value = '';
+      }
+
+      // HUD state: thinking + mobile arc reactor glow
+      setUIState('thinking');
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'state', value: 'thinking' }));
+        ws.send(JSON.stringify({
+          type: 'chat_input',
+          tab_id: ASSISTANT_TAB_ID,
+          text: msgText
+        }));
+      }
+
+      chatSlideInput.value = '';
+      chatSlideInput.style.height = 'auto';
+
+      // Disable input while streaming
+      chatSlideInput.disabled = true;
+      chatSlideInput.placeholder = 'Responding...';
+    }
+
+    // ---- localStorage Persistence ----
+    function saveChatMessages() {
+      try {
+        // Save only last 200 messages
+        const toSave = chatMessages.slice(-200).map(m => ({
+          role: m.role,
+          content: m.content,
+          timestamp: m.timestamp
+        }));
+        localStorage.setItem('jarvis_chat_messages', JSON.stringify(toSave));
+      } catch(e) {}
+    }
+
+    function loadChatMessages() {
+      // Load from localStorage as initial cache (server data will override on connect)
+      try {
+        const saved = localStorage.getItem('jarvis_chat_messages');
+        if (saved) {
+          chatMessages = JSON.parse(saved);
+          renderAllChatMessages();
+        }
+      } catch(e) {
+        chatMessages = [];
+      }
+    }
+
+    // ---- Model Select ----
+    const chatModelSelect = $('chatModelSelect');
+    chatModelSelect.addEventListener('change', () => {
+      const model = chatModelSelect.value;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'session_model_change',
+          tab_id: ASSISTANT_TAB_ID,
+          model: model,
+        }));
+      }
+    });
+
+    // ---- File Attach ----
+    let pendingImagePath = null;
+    const chatFileInput = $('chatFileInput');
+    const chatAttachBtn = $('chatAttachBtn');
+    const chatAttachPreview = $('chatAttachPreview');
+    const chatAttachImg = $('chatAttachImg');
+    const chatAttachRemove = $('chatAttachRemove');
+
+    chatAttachBtn.addEventListener('click', () => chatFileInput.click());
+    chatAttachRemove.addEventListener('click', () => {
+      pendingImagePath = null;
+      chatAttachPreview.style.display = 'none';
+      chatFileInput.value = '';
+    });
+
+    chatFileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const dataUrl = ev.target.result;
+        // Show preview
+        chatAttachImg.src = dataUrl;
+        chatAttachPreview.style.display = 'flex';
+
+        // Upload via WebSocket
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'file_upload',
+            filename: file.name,
+            data: dataUrl,
+          }));
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Handle upload response
+    function handleFileUploaded(data) {
+      pendingImagePath = data.path;
+    }
+
+    // ---- Event Listeners ----
+    chatSlideToggle.addEventListener('click', toggleChatPanel);
+    chatSlideClose.addEventListener('click', closeChatPanel);
+
+    chatSlideInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendChatMessage();
+      }
+    });
+
+    chatSlideInput.addEventListener('input', () => {
+      chatSlideInput.style.height = 'auto';
+      chatSlideInput.style.height = Math.min(chatSlideInput.scrollHeight, 100) + 'px';
+    });
+
+    chatSlideSendBtn.addEventListener('click', sendChatMessage);
+
+    // ---- Mobile Web Speech API / Desktop remote_record ----
+    let webSpeechActive = false;
+    let webSpeechRecognition = null;
+    let silenceTimer = null;
+    let manualStop = false;         // 사용자가 수동으로 멈춘 건지 구분
+    let accumulatedText = '';       // continuous 모드에서 누적 텍스트
+    const SILENCE_TIMEOUT = 3000;   // 3초 무음 시 자동 종료
+
+    function clearSilenceTimer() {
+      if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
+    }
+
+    function startSilenceTimer() {
+      clearSilenceTimer();
+      silenceTimer = setTimeout(() => {
+        if (webSpeechActive && webSpeechRecognition) {
+          console.log('[WebSpeech] Silence timeout — stopping');
+          manualStop = true;
+          webSpeechRecognition.stop();
+        }
+      }, SILENCE_TIMEOUT);
+    }
+
+    function stopWebSpeech() {
+      manualStop = true;
+      clearSilenceTimer();
+      if (webSpeechRecognition) {
+        try { webSpeechRecognition.stop(); } catch(e) {}
+      }
+    }
+
+    function initWebSpeech() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) return null;
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'ko-KR';
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        webSpeechActive = true;
+        manualStop = false;
+        accumulatedText = '';
+        setUIState('recording');
+        startSilenceTimer();
+      };
+
+      recognition.onresult = (event) => {
+        let allFinal = '';
+        let interim = '';
+        for (let i = 0; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            allFinal += event.results[i][0].transcript;
+          } else {
+            interim += event.results[i][0].transcript;
+          }
+        }
+        accumulatedText = allFinal;
+        // Show combined text in input field
+        chatSlideInput.value = allFinal + (interim ? interim : '');
+        // Scroll down to show latest wrapped line
+        chatSlideInput.scrollTop = chatSlideInput.scrollHeight;
+        // Reset silence timer on every new result
+        startSilenceTimer();
+      };
+
+      recognition.onend = () => {
+        if (!manualStop && webSpeechActive) {
+          // iOS Safari가 자동으로 끊은 경우 — 재시작
+          console.log('[WebSpeech] Browser stopped — auto-restarting');
+          try { recognition.start(); } catch(e) {
+            // 재시작 실패 시 종료 처리
+            webSpeechActive = false;
+            setUIState('idle');
+            const text = chatSlideInput.value.trim();
+            if (text) sendChatMessage();
+          }
+          return;
+        }
+        // 수동 종료 또는 무음 타이머 종료
+        clearSilenceTimer();
+        webSpeechActive = false;
+        manualStop = false;
+        setUIState('idle');
+        const text = chatSlideInput.value.trim();
+        if (text) {
+          sendChatMessage();
+        } else if (ws && ws.readyState === WebSocket.OPEN) {
+          // 음성 없이 종료 → 서버에 idle 알림
+          ws.send(JSON.stringify({ type: 'state', value: 'idle' }));
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.log('[WebSpeech] Error:', event.error);
+        // no-speech는 무시하고 계속 (자동 재시작됨)
+        if (event.error === 'no-speech') return;
+        clearSilenceTimer();
+        webSpeechActive = false;
+        manualStop = false;
+        setUIState('idle');
+      };
+
+      return recognition;
+    }
+
+    function stopTtsPlayback() {
+      _pendingListenAfterTts = false;
+      if (!ttsAudioPlaying && ttsAudioQueue.length === 0) return;
+      const el = getTtsAudioEl();
+      el.pause();
+      el.onended = null;
+      el.onerror = null;
+      ttsAudioQueue = [];
+      ttsAudioPlaying = false;
+    }
+
+    chatSlideMicBtn.addEventListener('click', () => {
+      unlockTtsAudio();
+
+      // TTS 재생 중이면 즉시 중단
+      if (ttsAudioPlaying || ttsAudioQueue.length > 0) {
+        stopTtsPlayback();
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'tts_interrupt' }));
+        }
+      }
+
+      if (isMobileView) {
+        // Mobile: use Web Speech API (phone mic)
+        if (!webSpeechRecognition) {
+          webSpeechRecognition = initWebSpeech();
+        }
+        if (!webSpeechRecognition) {
+          alert('이 브라우저에서 음성 인식이 지원되지 않습니다.');
+          return;
+        }
+        if (webSpeechActive) {
+          stopWebSpeech();
+        } else {
+          // Play "Yes, sir" before starting recognition (original speed)
+          try {
+            const ctx = getTtsAudioCtx();
+            fetch('/sounds/yes_sir.wav')
+              .then(r => r.arrayBuffer())
+              .then(buf => ctx.decodeAudioData(buf))
+              .then(decoded => {
+                const src = ctx.createBufferSource();
+                src.buffer = decoded;
+                src.connect(ctx.destination);
+                src.start(0);
+              }).catch(() => {});
+          } catch(e) {}
+          try { webSpeechRecognition.start(); } catch(e) {}
+        }
+      } else {
+        // Desktop: use WhisperFlow remote_record (Mac mic)
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'remote_record', value: 'toggle' }));
+        }
+      }
+    });
+
+    // Unified UI state manager — wraps applyTheme + mobile classes/text
+    function setUIState(state) {
+      // 1. PC: particle theme (skip if same state to avoid reset flicker)
+      if (THEMES[state] && state !== currentState) {
+        currentState = state;
+        applyTheme(currentState);
+      }
+
+      // 2. Mobile + PC: ghost-reactor aurora border classes
+      const hud = document.getElementById('hudContainer');
+      if (hud) {
+        hud.classList.remove('mobile-recording', 'mobile-thinking', 'mobile-speaking');
+        if (state === 'recording') hud.classList.add('mobile-recording');
+        else if (state === 'thinking' || state === 'processing') hud.classList.add('mobile-thinking');
+        else if (state === 'tts_playing') hud.classList.add('mobile-speaking');
+      }
+
+      // 3. Mobile status text
+      const mst = document.getElementById('mobileStatusText');
+      if (mst) {
+        const labels = {
+          idle: 'STANDBY',
+          recording: 'RECORDING',
+          processing: 'THINKING...',
+          thinking: 'THINKING...',
+          tts_playing: 'SPEAKING'
+        };
+        mst.textContent = labels[state] || 'STANDBY';
+      }
+
+      // 4. Chat mic button recording indicator
+      if (chatSlideMicBtn) {
+        if (state === 'recording') chatSlideMicBtn.classList.add('recording');
+        else chatSlideMicBtn.classList.remove('recording');
+      }
+    }
+
+    // Close panel on Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && chatPanelOpen) {
+        closeChatPanel();
+      }
+    });
+
+    // ---- Session list request on connect (kept for compatibility) ----
+    function requestSessionList() {
+      // No longer needed - single session
+    }
+
+    // ---- Initialize ----
+    function initDefaultSession() {
+      loadChatMessages();
+    }
+
+    // ============================================================
     //  INIT
     // ============================================================
-    applyTheme('idle');
+    setUIState('idle');
     connect();
+    initDefaultSession();
   </script>
 </body>
 </html>

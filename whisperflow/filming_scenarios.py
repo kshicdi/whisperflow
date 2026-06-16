@@ -162,7 +162,7 @@ def _handle_general(text):
             prompt = f'[자비스] 다음 질문에 자비스처럼 간결하게 1~3문장으로 답변해. 마크다운 금지. sir로 끝내.: {text}'
             result = subprocess.run(
                 ["claude", "-p", prompt],
-                capture_output=True, text=True, timeout=30
+                capture_output=True, text=True, timeout=120
             )
             response = result.stdout.strip()
             if response:

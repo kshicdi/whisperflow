@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JARVIS Mobile UI Mockups</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --cyan: #00d4ff;
+    --cyan-dim: rgba(0, 212, 255, 0.15);
+    --cyan-glow: rgba(0, 212, 255, 0.4);
+    --bg: #060a12;
+    --bg2: #0a0e18;
+    --msg-user: rgba(0, 160, 220, 0.12);
+    --msg-ai: rgba(20, 28, 45, 0.7);
+  }
+
+  body {
+    background: #111;
+    color: #ddd;
+    font-family: 'Rajdhani', sans-serif;
+    padding: 40px 20px;
+    min-height: 100vh;
+  }
+
+  h1 {
+    text-align: center;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 14px;
+    letter-spacing: 6px;
+    color: var(--cyan);
+    margin-bottom: 10px;
+    opacity: 0.7;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 40px;
+  }
+
+  .mockup-row {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    flex-wrap: wrap;
+  }
+
+  .mockup-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .mockup-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--cyan);
+    opacity: 0.6;
+  }
+  .mockup-desc {
+    font-size: 11px;
+    color: #555;
+    max-width: 300px;
+    text-align: center;
+    line-height: 1.4;
+  }
+
+  /* iPhone frame */
+  .iphone {
+    width: 320px;
+    height: 692px;
+    border-radius: 40px;
+    border: 3px solid #333;
+    background: var(--bg);
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 1px rgba(255,255,255,0.1) inset;
+  }
+  .iphone::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 50%; transform: translateX(-50%);
+    width: 120px; height: 28px;
+    background: #111;
+    border-radius: 0 0 16px 16px;
+    z-index: 100;
+  }
+
+  /* ============================================
+     SHARED: Messages, input bar, reactor
+     ============================================ */
+  .msg { display: flex; flex-direction: column; margin-bottom: 4px; }
+  .msg-user { align-items: flex-end; }
+  .msg-ai { align-items: flex-start; }
+
+  .msg-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 7px;
+    letter-spacing: 2px;
+    color: rgba(0,212,255,0.3);
+    margin-bottom: 1px;
+    padding: 0 6px;
+  }
+  .msg-bubble {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 12px;
+    line-height: 1.4;
+    padding: 5px 9px;
+    border-radius: 8px;
+    max-width: 82%;
+    color: #d0d8e8;
+    word-break: break-word;
+  }
+  .msg-user .msg-bubble {
+    background: var(--msg-user);
+    border: 1px solid rgba(0,212,255,0.12);
+    color: #c0e8ff;
+    border-radius: 8px 8px 2px 8px;
+  }
+  .msg-ai .msg-bubble {
+    background: var(--msg-ai);
+    border: 1px solid rgba(40,60,90,0.3);
+    border-radius: 8px 8px 8px 2px;
+  }
+  .msg-ai .msg-bubble code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    background: rgba(0,212,255,0.06);
+    padding: 1px 4px;
+    border-radius: 3px;
+    color: var(--cyan);
+  }
+  .msg-time {
+    font-size: 7px;
+    color: rgba(0,212,255,0.2);
+    padding: 0 6px;
+    margin-top: 1px;
+  }
+
+  .input-bar {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 8px 20px;
+    background: rgba(6,10,18,0.97);
+    border-top: 1px solid rgba(0,212,255,0.06);
+  }
+  .input-field {
+    flex: 1;
+    background: rgba(0,212,255,0.03);
+    border: 1px solid rgba(0,212,255,0.1);
+    border-radius: 16px;
+    padding: 7px 12px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    color: #aaa;
+    outline: none;
+  }
+  .input-btn {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    border: 1px solid rgba(0,212,255,0.15);
+    background: rgba(0,212,255,0.05);
+    color: rgba(0,212,255,0.4);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+
+  /* Arc Reactor CSS animation */
+  @keyframes reactor-spin { to { transform: rotate(360deg); } }
+  @keyframes reactor-pulse {
+    0%, 100% { box-shadow: 0 0 8px var(--cyan-dim), 0 0 20px rgba(0,212,255,0.05); opacity: 0.8; }
+    50% { box-shadow: 0 0 14px var(--cyan-glow), 0 0 30px rgba(0,212,255,0.12); opacity: 1; }
+  }
+  @keyframes reactor-core-pulse {
+    0%, 100% { transform: scale(1); opacity: 0.9; }
+    50% { transform: scale(1.15); opacity: 1; }
+  }
+
+  .reactor {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .reactor-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid;
+    animation: reactor-spin linear infinite;
+  }
+  .reactor-ring.r1 {
+    width: 100%; height: 100%;
+    border-color: rgba(0,212,255,0.1);
+    animation-duration: 12s;
+  }
+  .reactor-ring.r2 {
+    width: 75%; height: 75%;
+    border-color: rgba(0,212,255,0.18);
+    animation-duration: 8s;
+    animation-direction: reverse;
+  }
+  .reactor-ring.r3 {
+    width: 50%; height: 50%;
+    border-color: rgba(0,212,255,0.25);
+    animation-duration: 5s;
+  }
+  .reactor-core {
+    width: 30%; height: 30%;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--cyan) 0%, rgba(0,212,255,0.3) 50%, transparent 70%);
+    animation: reactor-core-pulse 3s ease-in-out infinite;
+    z-index: 1;
+  }
+
+  /* ============================================
+     MOCKUP A: Ghost Reactor
+     ============================================ */
+  .ma-inner {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    position: relative;
+  }
+  .ma-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 34px 14px 5px;
+    border-bottom: 1px solid rgba(0,212,255,0.06);
+    flex-shrink: 0;
+    z-index: 10;
+  }
+  .ma-header-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px;
+    letter-spacing: 3px;
+    color: rgba(0,212,255,0.35);
+  }
+  .ma-header-model {
+    font-size: 9px;
+    color: rgba(0,212,255,0.4);
+    border: 1px solid rgba(0,212,255,0.1);
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  .ma-ghost-reactor {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 180px;
+    height: 180px;
+    opacity: 0.12;
+    z-index: 0;
+  }
+  .ma-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 10px;
+    position: relative;
+    z-index: 5;
+  }
+
+  /* ============================================
+     MOCKUP B: Mini HUD Header
+     ============================================ */
+  .mb-inner {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .mb-hud-header {
+    padding: 34px 0 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    border-bottom: 1px solid rgba(0,212,255,0.06);
+    background: linear-gradient(180deg, rgba(0,212,255,0.03) 0%, transparent 100%);
+    flex-shrink: 0;
+  }
+  .mb-reactor-wrap {
+    width: 56px; height: 56px;
+    animation: reactor-pulse 3s ease-in-out infinite;
+    border-radius: 50%;
+  }
+  .mb-status {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--cyan);
+    opacity: 0.5;
+  }
+  .mb-model {
+    font-size: 8px;
+    color: rgba(0,212,255,0.25);
+    letter-spacing: 1px;
+  }
+  .mb-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 10px;
+  }
+
+  /* ============================================
+     MOCKUP C: Side Strip
+     ============================================ */
+  .mc-inner {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .mc-body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    padding-top: 32px;
+  }
+  .mc-strip {
+    width: 36px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 0;
+    gap: 14px;
+    border-right: 1px solid rgba(0,212,255,0.06);
+    background: rgba(0,212,255,0.015);
+  }
+  .mc-strip-reactor {
+    width: 26px; height: 26px;
+    animation: reactor-pulse 3s ease-in-out infinite;
+    border-radius: 50%;
+  }
+  .mc-strip-icon {
+    font-size: 10px;
+    opacity: 0.3;
+    writing-mode: vertical-lr;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 6px;
+    letter-spacing: 2px;
+    color: var(--cyan);
+  }
+  .mc-strip-dot {
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--cyan);
+    opacity: 0.2;
+  }
+  .mc-strip-dot.active { opacity: 0.7; }
+  .mc-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 8px 8px 6px;
+  }
+  .mc-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px 4px 6px;
+  }
+  .mc-header-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 7px;
+    letter-spacing: 2px;
+    color: rgba(0,212,255,0.3);
+  }
+  .mc-header-model {
+    font-size: 8px;
+    color: rgba(0,212,255,0.35);
+    border: 1px solid rgba(0,212,255,0.08);
+    padding: 0px 5px;
+    border-radius: 2px;
+  }
+</style>
+</head>
+<body>
+
+<h1>JARVIS MOBILE UI</h1>
+<p class="subtitle">3 layout variants for iPhone — tap to compare</p>
+
+<div class="mockup-row">
+
+  <!-- ========== MOCKUP A: Ghost Reactor ========== -->
+  <div class="mockup-col">
+    <div class="mockup-label">A &mdash; GHOST REACTOR</div>
+    <div class="iphone">
+      <div class="ma-inner">
+        <div class="ma-header">
+          <span class="ma-header-title">JARVIS</span>
+          <span class="ma-header-model">Haiku</span>
+        </div>
+        <div class="ma-ghost-reactor">
+          <div class="reactor" style="width:180px;height:180px;">
+            <div class="reactor-ring r1"></div>
+            <div class="reactor-ring r2"></div>
+            <div class="reactor-ring r3"></div>
+            <div class="reactor-core"></div>
+          </div>
+        </div>
+        <div class="ma-messages">
+          <div class="msg msg-user">
+            <div class="msg-label">YOU</div>
+            <div class="msg-bubble">vault inbox 파일 몇 개 있어?</div>
+            <div class="msg-time">18:32</div>
+          </div>
+          <div class="msg msg-ai">
+            <div class="msg-label">JARVIS</div>
+            <div class="msg-bubble">vault/inbox에 파일 7개 있습니다:<br><code>제주-농어촌민박-확인사항.md</code><br><code>경매-남원읍.md</code><br><code>제주도 배편.md</code><br>외 4개. 정리해드릴까요?</div>
+            <div class="msg-time">18:32</div>
+          </div>
+          <div class="msg msg-user">
+            <div class="msg-label">YOU</div>
+            <div class="msg-bubble">응 여행-레저 폴더로 옮겨줘</div>
+            <div class="msg-time">18:33</div>
+          </div>
+          <div class="msg msg-ai">
+            <div class="msg-label">JARVIS</div>
+            <div class="msg-bubble">3개 파일을 <code>여행-레저/</code>로 이동했습니다. 나머지 4개는 카테고리가 달라서 확인이 필요합니다.</div>
+            <div class="msg-time">18:33</div>
+          </div>
+          <div class="msg msg-user">
+            <div class="msg-label">YOU</div>
+            <div class="msg-bubble">autoflow 프로젝트 이슈 뭐 남았어?</div>
+            <div class="msg-time">18:34</div>
+          </div>
+          <div class="msg msg-ai">
+            <div class="msg-label">JARVIS</div>
+            <div class="msg-bubble">GitHub 이슈 5개 오픈 상태:<br>1. 이미지 생성 타임아웃 #23<br>2. 크롬 드라이버 버전 호환 #21<br>3. 배치 처리 로직 개선 #19<br>4. 로그 파일 정리 #17<br>5. README 업데이트 #15</div>
+            <div class="msg-time">18:34</div>
+          </div>
+        </div>
+        <div class="input-bar">
+          <div class="input-btn">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+          </div>
+          <div class="input-field">메시지 입력...</div>
+          <div class="input-btn">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg>
+          </div>
+          <div class="input-btn" style="background:rgba(0,212,255,0.1);border-color:rgba(0,212,255,0.25);">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="mockup-desc">리액터가 대화 뒤에서 유령처럼. 최대 채팅 공간. AI 응답 시 리액터가 밝아짐.</p>
+  </div>
+
+  <!-- ========== MOCKUP B: Mini HUD Header ========== -->
+  <div class="mockup-col">
+    <div class="mockup-label">B &mdash; MINI HUD HEADER</div>
+    <div class="iphone">
+      <div class="mb-inner">
+        <div class="mb-hud-header">
+          <div class="mb-reactor-wrap">
+            <div class="reactor" style="width:56px;height:56px;">
+              <div class="reactor-ring r1"></div>
+              <div class="reactor-ring r2"></div>
+              <div class="reactor-ring r3"></div>
+              <div class="reactor-core"></div>
+            </div>
+          </div>
+          <div class="mb-status">STANDBY</div>
+          <div class="mb-model">HAIKU &bull; CONNECTED</div>
+        </div>
+        <div class="mb-messages">
+          <div class="msg msg-user">
+            <div class="msg-label">YOU</div>
+            <div class="msg-bubble">vault inbox 파일 몇 개 있어?</div>
+            <div class="msg-time">18:32</div>
+          </div>
+          <div class="msg msg-ai">
+            <div class="msg-label">JARVIS</div>
+            <div class="msg-bubble">vault/inbox에 파일 7개 있습니다:<br><code>제주-농어촌민박-확인사항.md</code><br><code>경매-남원읍.md</code><br><code>제주도 배편.md</code><br>외 4개. 정리해드릴까요?</div>
+            <div class="msg-time">18:32</div>
+          </div>
+          <div class="msg msg-user">
+            <div class="msg-label">YOU</div>
+            <div class="msg-bubble">응 여행-레저 폴더로 옮겨줘</div>
+            <div class="msg-time">18:33</div>
+          </div>
+          <div class="msg msg-ai">
+            <div class="msg-label">JARVIS</div>
+            <div class="msg-bubble">3개 파일을 <code>여행-레저/</code>로 이동했습니다. 나머지 4개는 카테고리가 달라서 확인이 필요합니다.</div>
+            <div class="msg-time">18:33</div>
+          </div>
+          <div class="msg msg-user">
+            <div class="msg-label">YOU</div>
+            <div class="msg-bubble">autoflow 프로젝트 이슈 뭐 남았어?</div>
+            <div class="msg-time">18:34</div>
+          </div>
+          <div class="msg msg-ai">
+            <div class="msg-label">JARVIS</div>
+            <div class="msg-bubble">GitHub 이슈 5개 오픈 상태:<br>1. 이미지 생성 타임아웃 #23<br>2. 크롬 드라이버 버전 호환 #21<br>3. 배치 처리 로직 개선 #19<br>4. 로그 파일 정리 #17<br>5. README 업데이트 #15</div>
+            <div class="msg-time">18:34</div>
+          </div>
+        </div>
+        <div class="input-bar">
+          <div class="input-btn">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+          </div>
+          <div class="input-field">메시지 입력...</div>
+          <div class="input-btn">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg>
+          </div>
+          <div class="input-btn" style="background:rgba(0,212,255,0.1);border-color:rgba(0,212,255,0.25);">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="mockup-desc">리액터가 상단 헤더에 상태 표시와 함께. THINKING 시 리액터 확대 + 빠른 회전.</p>
+  </div>
+
+  <!-- ========== MOCKUP C: Side Strip ========== -->
+  <div class="mockup-col">
+    <div class="mockup-label">C &mdash; SIDE STRIP</div>
+    <div class="iphone">
+      <div class="mc-inner">
+        <div class="mc-body">
+          <div class="mc-strip">
+            <div class="mc-strip-reactor">
+              <div class="reactor" style="width:26px;height:26px;">
+                <div class="reactor-ring r1"></div>
+                <div class="reactor-ring r2"></div>
+                <div class="reactor-core"></div>
+              </div>
+            </div>
+            <div class="mc-strip-dot active"></div>
+            <div class="mc-strip-dot"></div>
+            <div class="mc-strip-dot"></div>
+            <div class="mc-strip-icon">STATUS</div>
+            <div style="flex:1;"></div>
+            <div class="mc-strip-icon">MIC</div>
+            <div class="mc-strip-dot"></div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;min-height:0;">
+            <div class="mc-header">
+              <span class="mc-header-title">JARVIS</span>
+              <span class="mc-header-model">Haiku</span>
+            </div>
+            <div class="mc-messages">
+              <div class="msg msg-user">
+                <div class="msg-label">YOU</div>
+                <div class="msg-bubble">vault inbox 파일 몇 개 있어?</div>
+                <div class="msg-time">18:32</div>
+              </div>
+              <div class="msg msg-ai">
+                <div class="msg-label">JARVIS</div>
+                <div class="msg-bubble">vault/inbox에 파일 7개 있습니다:<br><code>제주-농어촌민박-확인사항.md</code><br><code>경매-남원읍.md</code><br><code>제주도 배편.md</code><br>외 4개. 정리해드릴까요?</div>
+                <div class="msg-time">18:32</div>
+              </div>
+              <div class="msg msg-user">
+                <div class="msg-label">YOU</div>
+                <div class="msg-bubble">응 여행-레저 폴더로 옮겨줘</div>
+                <div class="msg-time">18:33</div>
+              </div>
+              <div class="msg msg-ai">
+                <div class="msg-label">JARVIS</div>
+                <div class="msg-bubble">3개 파일을 <code>여행-레저/</code>로 이동했습니다. 나머지 4개는 카테고리가 달라서 확인이 필요합니다.</div>
+                <div class="msg-time">18:33</div>
+              </div>
+              <div class="msg msg-user">
+                <div class="msg-label">YOU</div>
+                <div class="msg-bubble">autoflow 프로젝트 이슈 뭐 남았어?</div>
+                <div class="msg-time">18:34</div>
+              </div>
+              <div class="msg msg-ai">
+                <div class="msg-label">JARVIS</div>
+                <div class="msg-bubble">GitHub 이슈 5개 오픈 상태:<br>1. 이미지 생성 타임아웃 #23<br>2. 크롬 드라이버 버전 호환 #21<br>3. 배치 처리 로직 개선 #19<br>4. 로그 파일 정리 #17<br>5. README 업데이트 #15</div>
+                <div class="msg-time">18:34</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="input-bar">
+          <div class="input-btn">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+          </div>
+          <div class="input-field">메시지 입력...</div>
+          <div class="input-btn">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg>
+          </div>
+          <div class="input-btn" style="background:rgba(0,212,255,0.1);border-color:rgba(0,212,255,0.25);">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="mockup-desc">좌측 스트립에 리액터 + 상태. 채팅 공간 최대. 가장 정보 밀도 높음.</p>
+  </div>
+
+</div>
+
+</body>
+</html>

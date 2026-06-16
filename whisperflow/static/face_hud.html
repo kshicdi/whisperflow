@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JARVIS FACE ID</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0f;
+    color: #00ffff;
+    font-family: 'Rajdhani', 'Segoe UI', sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  #container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(ellipse at center, #0d1117 0%, #050508 100%);
+  }
+
+  /* Camera feed canvas */
+  #camera-canvas {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+
+  /* Overlay canvas for drawings */
+  #overlay-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    pointer-events: none;
+  }
+
+  /* Three.js canvas */
+  #three-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  /* Mode badge */
+  #mode-badge {
+    font-family: 'Orbitron', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #ffcc00;
+    text-shadow: 0 0 8px rgba(255,204,0,0.5);
+  }
+
+  /* Top HUD bar */
+  #hud-top {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 48px;
+    background: linear-gradient(180deg, rgba(0,10,20,0.92) 0%, rgba(0,10,20,0.7) 80%, transparent 100%);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    z-index: 100;
+    border-bottom: 1px solid rgba(0,255,255,0.15);
+  }
+
+  #hud-top .title {
+    font-family: 'Orbitron', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: #00ffff;
+    text-shadow: 0 0 20px rgba(0,255,255,0.5), 0 0 40px rgba(0,255,255,0.2);
+  }
+
+  #hud-top .status {
+    display: flex;
+    gap: 24px;
+    font-family: 'Rajdhani', monospace;
+    font-size: 14px;
+    font-weight: 500;
+    color: rgba(0,255,255,0.7);
+    letter-spacing: 1px;
+  }
+
+  #hud-top .status span {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #00ff88;
+    box-shadow: 0 0 6px #00ff88;
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Bottom HUD bar */
+  #hud-bottom {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 44px;
+    background: linear-gradient(0deg, rgba(0,10,20,0.92) 0%, rgba(0,10,20,0.7) 80%, transparent 100%);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    z-index: 100;
+    border-top: 1px solid rgba(0,255,255,0.1);
+  }
+
+  #hud-bottom .objects-summary {
+    font-family: 'Rajdhani', monospace;
+    font-size: 13px;
+    color: rgba(102,255,102,0.8);
+    letter-spacing: 1px;
+  }
+
+  #hud-bottom .controls {
+    font-family: 'Rajdhani', monospace;
+    font-size: 13px;
+    color: rgba(0,255,255,0.5);
+    letter-spacing: 1px;
+  }
+
+  .key-hint {
+    display: inline-block;
+    border: 1px solid rgba(0,255,255,0.3);
+    border-radius: 3px;
+    padding: 1px 6px;
+    margin: 0 2px;
+    font-size: 12px;
+    color: rgba(0,255,255,0.7);
+  }
+
+  /* Scan line effect */
+  #scanline {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent 0%, rgba(0,255,255,0.4) 50%, transparent 100%);
+    z-index: 200;
+    animation: scan 4s linear infinite;
+    pointer-events: none;
+  }
+
+  @keyframes scan {
+    0% { top: 0; }
+    100% { top: 100vh; }
+  }
+
+  /* Corner vignette */
+  #vignette {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.6) 100%);
+    pointer-events: none;
+    z-index: 90;
+  }
+
+  /* Grid overlay */
+  #grid-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image:
+      linear-gradient(rgba(0,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 91;
+  }
+
+  /* Face info panels */
+  .face-panel {
+    position: absolute;
+    background: linear-gradient(135deg, rgba(0,15,25,0.88) 0%, rgba(0,10,20,0.92) 100%);
+    border: 1px solid rgba(0,255,255,0.25);
+    border-radius: 4px;
+    padding: 10px 14px;
+    min-width: 170px;
+    backdrop-filter: blur(8px);
+    z-index: 50;
+    pointer-events: none;
+  }
+
+  .face-panel.unknown {
+    border-color: rgba(255,68,68,0.4);
+  }
+
+  .face-panel .name {
+    font-family: 'Orbitron', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+    color: #00ffff;
+    text-shadow: 0 0 10px rgba(0,255,255,0.4);
+  }
+
+  .face-panel.unknown .name {
+    color: #ff4444;
+    text-shadow: 0 0 10px rgba(255,68,68,0.4);
+  }
+
+  .confidence-bar {
+    width: 100%;
+    height: 6px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 3px;
+    margin-bottom: 8px;
+    overflow: hidden;
+  }
+
+  .confidence-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #00cccc, #00ffff);
+    box-shadow: 0 0 8px rgba(0,255,255,0.5);
+    transition: width 0.3s ease;
+  }
+
+  .face-panel.unknown .confidence-fill {
+    background: linear-gradient(90deg, #cc4444, #ff4444);
+    box-shadow: 0 0 8px rgba(255,68,68,0.5);
+  }
+
+  .face-panel .detail {
+    font-size: 12px;
+    color: rgba(0,200,200,0.7);
+    letter-spacing: 1px;
+    line-height: 1.6;
+  }
+
+  .face-panel .emotion-line {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(0,255,200,0.8);
+  }
+
+  .conf-percent {
+    float: right;
+    font-size: 11px;
+    color: rgba(255,255,255,0.6);
+    font-family: 'Orbitron', monospace;
+  }
+
+  /* Object labels */
+  .obj-label {
+    position: absolute;
+    font-family: 'Rajdhani', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(102,255,102,0.9);
+    background: rgba(0,15,5,0.7);
+    border: 1px solid rgba(102,255,102,0.3);
+    border-radius: 2px;
+    padding: 1px 8px;
+    letter-spacing: 1px;
+    pointer-events: none;
+    z-index: 50;
+    white-space: nowrap;
+  }
+
+  /* Register modal */
+  #register-modal {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 300;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+
+  #register-modal.active { display: flex; }
+
+  #register-modal .modal-box {
+    background: linear-gradient(135deg, rgba(0,20,30,0.95) 0%, rgba(0,10,20,0.98) 100%);
+    border: 1px solid rgba(0,255,255,0.3);
+    border-radius: 8px;
+    padding: 28px 36px;
+    min-width: 340px;
+    text-align: center;
+  }
+
+  #register-modal h3 {
+    font-family: 'Orbitron', monospace;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: #ffcc00;
+    margin-bottom: 8px;
+  }
+
+  #register-modal .face-list {
+    font-size: 14px;
+    color: rgba(0,255,255,0.7);
+    margin-bottom: 16px;
+    line-height: 1.8;
+  }
+
+  #register-modal input {
+    width: 100%;
+    padding: 10px 14px;
+    background: rgba(0,30,50,0.8);
+    border: 1px solid rgba(0,255,255,0.3);
+    border-radius: 4px;
+    color: #00ffff;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 16px;
+    outline: none;
+    letter-spacing: 1px;
+  }
+
+  #register-modal input:focus {
+    border-color: rgba(0,255,255,0.6);
+    box-shadow: 0 0 12px rgba(0,255,255,0.2);
+  }
+
+  #register-modal input::placeholder {
+    color: rgba(0,255,255,0.3);
+  }
+
+  #register-modal .hint {
+    font-size: 12px;
+    color: rgba(0,255,255,0.4);
+    margin-top: 10px;
+  }
+
+  #register-modal .result-msg {
+    font-size: 14px;
+    margin-top: 12px;
+    min-height: 20px;
+  }
+
+  .result-msg.success { color: #00ff88; }
+  .result-msg.error { color: #ff4444; }
+
+  /* Notification toast */
+  #toast {
+    position: fixed;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,20,30,0.9);
+    border: 1px solid rgba(0,255,255,0.3);
+    border-radius: 6px;
+    padding: 10px 24px;
+    font-size: 14px;
+    color: #00ffff;
+    z-index: 400;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+
+  #toast.show { opacity: 1; }
+
+  /* No connection overlay */
+  #no-connection {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Orbitron', monospace;
+    font-size: 16px;
+    letter-spacing: 3px;
+    color: rgba(255,255,255,0.3);
+    z-index: 150;
+  }
+
+  .connecting-spinner {
+    display: inline-block;
+    width: 12px; height: 12px;
+    border: 2px solid rgba(0,255,255,0.3);
+    border-top-color: #00ffff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div id="container">
+  <canvas id="camera-canvas"></canvas>
+  <canvas id="overlay-canvas"></canvas>
+  <canvas id="three-canvas"></canvas>
+</div>
+
+<div id="scanline"></div>
+<div id="vignette"></div>
+<div id="grid-overlay"></div>
+
+<div id="hud-top">
+  <div class="title">JARVIS FACE ID</div>
+  <div class="status">
+    <span><span class="dot"></span> <span id="status-text">CONNECTING</span></span>
+    <span>FPS: <span id="fps-val">--</span></span>
+    <span>FACES: <span id="face-count">0</span></span>
+    <span>REGISTERED: <span id="reg-count">0</span></span>
+  </div>
+</div>
+
+<div id="hud-bottom">
+  <div class="objects-summary" id="objects-summary">OBJECTS: --</div>
+  <div class="controls">
+    <span id="mode-badge">MODE: SCAN</span>
+    &nbsp;&nbsp;
+    <span class="key-hint">M</span> MODE
+    <span class="key-hint">R</span> REGISTER
+    <span class="key-hint">ESC</span> CANCEL
+  </div>
+</div>
+
+<div id="no-connection">
+  <span class="connecting-spinner"></span> CONNECTING TO SERVER...
+</div>
+
+<div id="toast"></div>
+
+<div id="register-modal">
+  <div class="modal-box">
+    <h3>REGISTER FACE</h3>
+    <div class="face-list" id="reg-face-list"></div>
+    <input type="text" id="reg-input" placeholder="번호 이름 (예: 1 홍길동)" autocomplete="off">
+    <div class="hint">번호 없이 이름만 입력하면 1번 얼굴로 등록</div>
+    <div class="result-msg" id="reg-result"></div>
+  </div>
+</div>
+
+<script>
+const WS_PORT = 9001;
+
+const camCanvas = document.getElementById('camera-canvas');
+const camCtx = camCanvas.getContext('2d');
+const overlay = document.getElementById('overlay-canvas');
+const overlayCtx = overlay.getContext('2d');
+
+const statusText = document.getElementById('status-text');
+const fpsVal = document.getElementById('fps-val');
+const faceCount = document.getElementById('face-count');
+const regCount = document.getElementById('reg-count');
+const objSummary = document.getElementById('objects-summary');
+const noConn = document.getElementById('no-connection');
+const toast = document.getElementById('toast');
+
+// Face mask mode
+const FACE_MODES = ['SCAN', 'HOLOGRAM', 'SHIELD', 'IRONMAN', 'IRONMAN_3D'];
+let faceMode = 'SCAN';
+const modeBadge = document.getElementById('mode-badge');
+
+// Dynamic face panels & object labels
+let activePanels = [];
+let activeObjLabels = [];
+let latestFaces = [];
+let ws = null;
+let connected = false;
+
+// Double-buffered camera images
+let camImgA = new Image();
+let camImgB = new Image();
+let useA = true;       // which buffer is "next" to load into
+let readyImg = null;   // last fully-loaded image (always safe to draw)
+let pendingData = null; // data waiting for image load
+
+camImgA.onload = function() { readyImg = camImgA; if (pendingData) { drawFrame(pendingData); pendingData = null; } };
+camImgB.onload = function() { readyImg = camImgB; if (pendingData) { drawFrame(pendingData); pendingData = null; } };
+
+function connect() {
+  ws = new WebSocket(`ws://localhost:${WS_PORT}`);
+
+  ws.onopen = () => {
+    connected = true;
+    noConn.style.display = 'none';
+    statusText.textContent = 'ONLINE';
+    showToast('SYSTEM CONNECTED');
+  };
+
+  ws.onclose = () => {
+    connected = false;
+    noConn.style.display = 'block';
+    statusText.textContent = 'OFFLINE';
+    setTimeout(connect, 2000);
+  };
+
+  ws.onerror = () => { ws.close(); };
+
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.type === 'frame_update') handleFrame(data);
+      else if (data.type === 'register_result') handleRegisterResult(data);
+    } catch(e) {}
+  };
+}
+
+function handleFrame(data) {
+  // Update HUD stats
+  fpsVal.textContent = data.fps;
+  faceCount.textContent = data.faces.length;
+  regCount.textContent = data.registered_count;
+  latestFaces = data.faces;
+
+  // Objects summary
+  if (data.objects.length > 0) {
+    const names = [...new Set(data.objects.map(o => o.name))].slice(0, 6);
+    objSummary.textContent = 'OBJECTS: ' + names.join(', ').toUpperCase();
+  } else {
+    objSummary.textContent = 'OBJECTS: --';
+  }
+
+  // Load image into the alternate buffer (double-buffering)
+  pendingData = data;
+  const nextImg = useA ? camImgA : camImgB;
+  useA = !useA;
+  nextImg.src = data.frame;
+}
+
+function drawFrame(data) {
+  if (!readyImg) return;
+
+  const W = readyImg.naturalWidth;
+  const H = readyImg.naturalHeight;
+
+  // Resize canvases to match video
+  if (camCanvas.width !== W || camCanvas.height !== H) {
+    camCanvas.width = W;
+    camCanvas.height = H;
+    overlay.width = W;
+    overlay.height = H;
+
+    // Position overlay on top of camera canvas
+    const rect = camCanvas.getBoundingClientRect();
+    overlay.style.left = rect.left + 'px';
+    overlay.style.top = rect.top + 'px';
+    overlay.style.width = rect.width + 'px';
+    overlay.style.height = rect.height + 'px';
+  }
+
+  // Draw camera frame (always from last fully-loaded image)
+  camCtx.drawImage(readyImg, 0, 0);
+
+  // Clear overlay
+  overlayCtx.clearRect(0, 0, W, H);
+
+  const scaleX = overlay.width / W;
+  const scaleY = overlay.height / H;
+
+  // Remove old panels and labels
+  activePanels.forEach(el => el.remove());
+  activePanels = [];
+  activeObjLabels.forEach(el => el.remove());
+  activeObjLabels = [];
+
+  // Draw faces based on current mode
+  data.faces.forEach((face, idx) => {
+    const [top, right, bottom, left] = face.location;
+    const isKnown = face.name !== 'unknown';
+    const color = isKnown ? '#00ffff' : '#ff4444';
+
+    if (faceMode === 'SCAN') {
+      drawFaceScan(overlayCtx, face, idx, top, right, bottom, left, color, isKnown);
+    } else if (faceMode === 'HOLOGRAM') {
+      drawFaceHologram(overlayCtx, face, idx, top, right, bottom, left, color, isKnown);
+    } else if (faceMode === 'SHIELD') {
+      drawFaceShield(overlayCtx, face, idx, top, right, bottom, left, color, isKnown);
+    } else if (faceMode === 'IRONMAN') {
+      drawFaceIronMan(overlayCtx, face, idx, top, right, bottom, left);
+    } else if (faceMode === 'IRONMAN_3D') {
+      // 2D fallback brackets; 3D handled separately
+      drawCornerBrackets(overlayCtx, left, top, right, bottom, color, 2);
+    }
+  });
+
+  // Three.js 3D mode
+  if (faceMode === 'IRONMAN_3D') {
+    updateIronMan3D(data.faces);
+    threeCanvas.style.display = 'block';
+  } else {
+    threeCanvas.style.display = 'none';
+  }
+
+  // Draw objects
+  data.objects.forEach(obj => {
+    const [x1, y1, x2, y2] = obj.bbox;
+    const color = '#66ff66';
+
+    // Thin dashed rectangle
+    overlayCtx.strokeStyle = color;
+    overlayCtx.globalAlpha = 0.5;
+    overlayCtx.lineWidth = 1;
+    overlayCtx.setLineDash([6, 4]);
+    overlayCtx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+    overlayCtx.setLineDash([]);
+    overlayCtx.globalAlpha = 1;
+
+    // Object label (HTML)
+    createObjLabel(obj, x1, y1);
+  });
+}
+
+function drawCornerBrackets(ctx, left, top, right, bottom, color, thickness) {
+  const w = right - left;
+  const h = bottom - top;
+  const len = Math.max(Math.min(w, h) * 0.2, 12);
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = thickness;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 6;
+
+  ctx.beginPath();
+  // Top-left
+  ctx.moveTo(left + len, top); ctx.lineTo(left, top); ctx.lineTo(left, top + len);
+  // Top-right
+  ctx.moveTo(right - len, top); ctx.lineTo(right, top); ctx.lineTo(right, top + len);
+  // Bottom-left
+  ctx.moveTo(left + len, bottom); ctx.lineTo(left, bottom); ctx.lineTo(left, bottom - len);
+  // Bottom-right
+  ctx.moveTo(right - len, bottom); ctx.lineTo(right, bottom); ctx.lineTo(right, bottom - len);
+  ctx.stroke();
+
+  ctx.shadowBlur = 0;
+}
+
+function drawFaceMesh(ctx, landmarks, color) {
+  if (!landmarks || landmarks.length < 4) return;
+
+  ctx.globalAlpha = 0.15;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 0.5;
+
+  // Simple triangulation: connect nearby points
+  const pts = landmarks;
+  for (let i = 0; i < pts.length; i++) {
+    // Connect to next 2 nearest sequential points
+    for (let d = 1; d <= 2; d++) {
+      const j = (i + d) % pts.length;
+      ctx.beginPath();
+      ctx.moveTo(pts[i][0], pts[i][1]);
+      ctx.lineTo(pts[j][0], pts[j][1]);
+      ctx.stroke();
+    }
+  }
+
+  // Cross connections for mesh density
+  for (let i = 0; i < pts.length; i += 3) {
+    const j = (i + Math.floor(pts.length / 3)) % pts.length;
+    ctx.beginPath();
+    ctx.moveTo(pts[i][0], pts[i][1]);
+    ctx.lineTo(pts[j][0], pts[j][1]);
+    ctx.stroke();
+  }
+
+  // Landmark dots
+  ctx.globalAlpha = 0.25;
+  ctx.fillStyle = color;
+  for (const pt of pts) {
+    ctx.beginPath();
+    ctx.arc(pt[0], pt[1], 1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.globalAlpha = 1;
+}
+
+function createFacePanel(face, idx, left, top, right, bottom) {
+  const container = document.getElementById('container');
+  const rect = camCanvas.getBoundingClientRect();
+  const scaleX = rect.width / camCanvas.width;
+  const scaleY = rect.height / camCanvas.height;
+
+  const panel = document.createElement('div');
+  panel.className = 'face-panel' + (face.name === 'unknown' ? ' unknown' : '');
+
+  const isKnown = face.name !== 'unknown';
+  const displayName = isKnown ? face.name.toUpperCase() : 'UNKNOWN';
+  const confPct = Math.round(face.confidence * 100);
+
+  const emotionMap = {
+    happy: 'HAPPY', sad: 'SAD', angry: 'ANGRY',
+    surprise: 'SURPRISE', neutral: 'NEUTRAL', fear: 'FEAR', disgust: 'DISGUST'
+  };
+  const emotionText = emotionMap[face.emotion] || face.emotion.toUpperCase();
+
+  panel.innerHTML = `
+    <div class="name">${displayName} <span class="conf-percent">${confPct}%</span></div>
+    <div class="confidence-bar"><div class="confidence-fill" style="width:${confPct}%"></div></div>
+    <div class="emotion-line">${emotionText}</div>
+    <div class="detail">${face.gender} / ${face.age}</div>
+  `;
+
+  // Position panel to the right of face bbox
+  let panelLeft = rect.left + right * scaleX + 12;
+  let panelTop = rect.top + top * scaleY;
+
+  // If panel goes off-screen right, put it on the left
+  if (panelLeft + 180 > window.innerWidth) {
+    panelLeft = rect.left + left * scaleX - 190;
+  }
+
+  panel.style.position = 'absolute';
+  panel.style.left = panelLeft + 'px';
+  panel.style.top = panelTop + 'px';
+
+  document.body.appendChild(panel);
+  activePanels.push(panel);
+}
+
+function createObjLabel(obj, x1, y1) {
+  const rect = camCanvas.getBoundingClientRect();
+  const scaleX = rect.width / camCanvas.width;
+  const scaleY = rect.height / camCanvas.height;
+
+  const label = document.createElement('div');
+  label.className = 'obj-label';
+  label.textContent = `${obj.name.toUpperCase()} ${Math.round(obj.confidence * 100)}%`;
+
+  label.style.left = (rect.left + x1 * scaleX) + 'px';
+  label.style.top = (rect.top + y1 * scaleY - 22) + 'px';
+
+  document.body.appendChild(label);
+  activeObjLabels.push(label);
+}
+
+// --- Face mode rendering functions ---
+
+function drawFaceScan(ctx, face, idx, top, right, bottom, left, color, isKnown) {
+  drawCornerBrackets(ctx, left, top, right, bottom, color, 2);
+  if (face.landmarks && face.landmarks.length > 3) {
+    drawFaceMesh(ctx, face.landmarks, color);
+  }
+  // Connecting line
+  const panelX = right + 12;
+  ctx.beginPath();
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = 0.3;
+  ctx.setLineDash([4, 4]);
+  ctx.moveTo(right, top + (bottom - top) / 2);
+  ctx.lineTo(panelX, top + 20);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.globalAlpha = 1;
+  createFacePanel(face, idx, left, top, right, bottom);
+}
+
+function drawFaceHologram(ctx, face, idx, top, right, bottom, left, color, isKnown) {
+  drawCornerBrackets(ctx, left, top, right, bottom, color, 2);
+
+  // Holographic fill overlay
+  ctx.globalAlpha = 0.25;
+  ctx.fillStyle = isKnown ? 'rgba(0,255,255,0.25)' : 'rgba(255,68,68,0.25)';
+  ctx.fillRect(left, top, right - left, bottom - top);
+  ctx.globalAlpha = 1;
+
+  // Thick wireframe mesh with glow
+  if (face.landmarks && face.landmarks.length > 3) {
+    const pts = face.landmarks;
+    ctx.globalAlpha = 0.4;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 15;
+
+    for (let i = 0; i < pts.length; i++) {
+      for (let d = 1; d <= 2; d++) {
+        const j = (i + d) % pts.length;
+        ctx.beginPath();
+        ctx.moveTo(pts[i][0], pts[i][1]);
+        ctx.lineTo(pts[j][0], pts[j][1]);
+        ctx.stroke();
+      }
+    }
+    for (let i = 0; i < pts.length; i += 3) {
+      const j = (i + Math.floor(pts.length / 3)) % pts.length;
+      ctx.beginPath();
+      ctx.moveTo(pts[i][0], pts[i][1]);
+      ctx.lineTo(pts[j][0], pts[j][1]);
+      ctx.stroke();
+    }
+
+    // Larger landmark points
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = color;
+    ctx.shadowBlur = 15;
+    for (const pt of pts) {
+      ctx.beginPath();
+      ctx.arc(pt[0], pt[1], 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+  }
+
+  // Simplified panel: name only
+  createFacePanelSimple(face, left, top, right, bottom);
+}
+
+function drawFaceShield(ctx, face, idx, top, right, bottom, left, color, isKnown) {
+  const fw = right - left;
+  const fh = bottom - top;
+  if (fw <= 0 || fh <= 0) return;
+
+  // Step 1: 카메라 canvas에서 얼굴 영역을 픽셀화 (모자이크)
+  const pixelSize = Math.max(Math.round(fw / 8), 6); // 블록 크기
+  const sx = Math.max(0, left);
+  const sy = Math.max(0, top);
+  const sw = Math.min(fw, camCanvas.width - sx);
+  const sh = Math.min(fh, camCanvas.height - sy);
+
+  if (sw > 0 && sh > 0) {
+    // 축소 후 확대 → 모자이크 효과 (카메라 canvas에 직접 적용)
+    const smallW = Math.max(1, Math.round(sw / pixelSize));
+    const smallH = Math.max(1, Math.round(sh / pixelSize));
+
+    camCtx.imageSmoothingEnabled = false;
+    // 얼굴 영역을 작게 그렸다가 다시 크게 그리기
+    camCtx.drawImage(camCanvas, sx, sy, sw, sh, sx, sy, smallW, smallH);
+    camCtx.drawImage(camCanvas, sx, sy, smallW, smallH, sx, sy, sw, sh);
+    camCtx.imageSmoothingEnabled = true;
+  }
+
+  // Step 2: 모자이크 위에 반투명 시안/빨간 오버레이
+  ctx.globalAlpha = 0.3;
+  ctx.fillStyle = isKnown ? 'rgba(0,255,255,1)' : 'rgba(255,68,68,1)';
+  ctx.fillRect(left, top, fw, fh);
+  ctx.globalAlpha = 1;
+
+  // Step 3: 코너 브라켓
+  drawCornerBrackets(ctx, left, top, right, bottom, color, 2);
+
+  // Step 4: 이름 + 감정 텍스트
+  const displayName = face.name !== 'unknown' ? face.name.toUpperCase() : 'UNKNOWN';
+  const emotionMap = {
+    happy: 'HAPPY', sad: 'SAD', angry: 'ANGRY',
+    surprise: 'SURPRISE', neutral: 'NEUTRAL', fear: 'FEAR', disgust: 'DISGUST'
+  };
+  const emotionText = emotionMap[face.emotion] || (face.emotion ? face.emotion.toUpperCase() : '');
+
+  const cx = (left + right) / 2;
+  const cy = (top + bottom) / 2;
+  const fontSize = Math.max(Math.round(fw * 0.12), 12);
+
+  ctx.font = `bold ${fontSize}px 'Orbitron', monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 8;
+  ctx.fillText(displayName, cx, cy - fontSize * 0.6);
+
+  ctx.font = `${Math.round(fontSize * 0.8)}px 'Rajdhani', sans-serif`;
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.fillText(emotionText, cx, cy + fontSize * 0.6);
+
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'start';
+  ctx.textBaseline = 'alphabetic';
+}
+
+function drawFaceIronMan(ctx, face, idx, top, right, bottom, left) {
+  const lm = face.landmarks;
+  const cx = (left + right) / 2;
+  const cy = (top + bottom) / 2;
+  const fw = right - left;
+  const fh = bottom - top;
+
+  // --- Helmet base: fill face area with red/gold gradient ---
+  const helmGrad = ctx.createLinearGradient(left, top, right, bottom);
+  helmGrad.addColorStop(0, 'rgba(204,0,0,0.7)');
+  helmGrad.addColorStop(0.4, 'rgba(255,215,0,0.7)');
+  helmGrad.addColorStop(0.6, 'rgba(204,0,0,0.7)');
+  helmGrad.addColorStop(1, 'rgba(255,215,0,0.7)');
+
+  // Helmet outer shape (elongated ellipse)
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, fw * 0.58, fh * 0.55, 0, 0, Math.PI * 2);
+  ctx.fillStyle = helmGrad;
+  ctx.shadowColor = 'rgba(255,50,0,0.5)';
+  ctx.shadowBlur = 20;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Helmet outline
+  ctx.strokeStyle = '#ffd700';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#ffd700';
+  ctx.shadowBlur = 8;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.restore();
+
+  // --- Forehead detail: horizontal line ---
+  ctx.save();
+  ctx.strokeStyle = '#ffd700';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#ffd700';
+  ctx.shadowBlur = 6;
+  ctx.beginPath();
+  ctx.moveTo(cx - fw * 0.3, top + fh * 0.2);
+  ctx.lineTo(cx + fw * 0.3, top + fh * 0.2);
+  ctx.stroke();
+  // Forehead center triangular detail
+  ctx.beginPath();
+  ctx.moveTo(cx, top + fh * 0.05);
+  ctx.lineTo(cx - fw * 0.08, top + fh * 0.2);
+  ctx.lineTo(cx + fw * 0.08, top + fh * 0.2);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(255,215,0,0.6)';
+  ctx.fill();
+  ctx.strokeStyle = '#ffd700';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.restore();
+
+  // --- Eye slits ---
+  if (lm && lm.length > 74) {
+    // Use landmarks for eye positions
+    const leftEyeCenter = getEyeCenter(lm, 55, 64);
+    const rightEyeCenter = getEyeCenter(lm, 65, 74);
+
+    drawIronManEye(ctx, leftEyeCenter[0], leftEyeCenter[1], fw * 0.16, fh * 0.07);
+    drawIronManEye(ctx, rightEyeCenter[0], rightEyeCenter[1], fw * 0.16, fh * 0.07);
+  } else {
+    // Fallback: estimated eye positions
+    drawIronManEye(ctx, cx - fw * 0.17, cy - fh * 0.08, fw * 0.16, fh * 0.07);
+    drawIronManEye(ctx, cx + fw * 0.17, cy - fh * 0.08, fw * 0.16, fh * 0.07);
+  }
+
+  // --- Nose/mouth metallic panel ---
+  ctx.save();
+  ctx.strokeStyle = '#ffd700';
+  ctx.lineWidth = 1.5;
+  ctx.shadowColor = '#ffd700';
+  ctx.shadowBlur = 4;
+
+  // Nose bridge vertical line
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - fh * 0.1);
+  ctx.lineTo(cx, cy + fh * 0.05);
+  ctx.stroke();
+
+  // Mouth plate
+  ctx.beginPath();
+  const mouthY = cy + fh * 0.15;
+  ctx.moveTo(cx - fw * 0.18, mouthY);
+  ctx.lineTo(cx + fw * 0.18, mouthY);
+  ctx.stroke();
+
+  // Chin plate detail lines
+  for (let i = 1; i <= 3; i++) {
+    const yy = mouthY + i * fh * 0.05;
+    const halfW = fw * (0.16 - i * 0.03);
+    ctx.beginPath();
+    ctx.moveTo(cx - halfW, yy);
+    ctx.lineTo(cx + halfW, yy);
+    ctx.stroke();
+  }
+
+  // Side jaw lines
+  ctx.beginPath();
+  ctx.moveTo(cx - fw * 0.35, cy);
+  ctx.lineTo(cx - fw * 0.2, cy + fh * 0.3);
+  ctx.lineTo(cx, cy + fh * 0.42);
+  ctx.lineTo(cx + fw * 0.2, cy + fh * 0.3);
+  ctx.lineTo(cx + fw * 0.35, cy);
+  ctx.strokeStyle = 'rgba(255,215,0,0.5)';
+  ctx.stroke();
+
+  ctx.shadowBlur = 0;
+  ctx.restore();
+
+  // Corner brackets (on top)
+  drawCornerBrackets(ctx, left, top, right, bottom, '#ffd700', 2);
+}
+
+function getEyeCenter(lm, startIdx, endIdx) {
+  let sx = 0, sy = 0, count = 0;
+  for (let i = startIdx; i <= Math.min(endIdx, lm.length - 1); i++) {
+    sx += lm[i][0];
+    sy += lm[i][1];
+    count++;
+  }
+  return count > 0 ? [sx / count, sy / count] : [0, 0];
+}
+
+function drawIronManEye(ctx, cx, cy, w, h) {
+  ctx.save();
+  // Glowing eye slit (angular shape)
+  ctx.beginPath();
+  ctx.moveTo(cx - w * 0.5, cy);
+  ctx.lineTo(cx - w * 0.2, cy - h);
+  ctx.lineTo(cx + w * 0.3, cy - h * 0.8);
+  ctx.lineTo(cx + w * 0.5, cy);
+  ctx.lineTo(cx + w * 0.3, cy + h * 0.8);
+  ctx.lineTo(cx - w * 0.2, cy + h);
+  ctx.closePath();
+
+  // Fill with bright glow
+  ctx.fillStyle = 'rgba(200,240,255,0.95)';
+  ctx.shadowColor = '#00ffff';
+  ctx.shadowBlur = 20;
+  ctx.fill();
+  ctx.shadowBlur = 10;
+  ctx.fill(); // double fill for stronger glow
+
+  // Eye outline
+  ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+  ctx.lineWidth = 1.5;
+  ctx.shadowBlur = 15;
+  ctx.shadowColor = '#00ffff';
+  ctx.stroke();
+
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+function createFacePanelSimple(face, left, top, right, bottom) {
+  const container = document.getElementById('container');
+  const rect = camCanvas.getBoundingClientRect();
+  const scaleX = rect.width / camCanvas.width;
+  const scaleY = rect.height / camCanvas.height;
+
+  const panel = document.createElement('div');
+  panel.className = 'face-panel' + (face.name === 'unknown' ? ' unknown' : '');
+
+  const displayName = face.name !== 'unknown' ? face.name.toUpperCase() : 'UNKNOWN';
+  panel.innerHTML = `<div class="name">${displayName}</div>`;
+  panel.style.minWidth = '100px';
+
+  let panelLeft = rect.left + right * scaleX + 12;
+  let panelTop = rect.top + top * scaleY;
+  if (panelLeft + 120 > window.innerWidth) {
+    panelLeft = rect.left + left * scaleX - 130;
+  }
+  panel.style.position = 'absolute';
+  panel.style.left = panelLeft + 'px';
+  panel.style.top = panelTop + 'px';
+
+  document.body.appendChild(panel);
+  activePanels.push(panel);
+}
+
+// --- Three.js Iron Man 3D setup ---
+const threeCanvas = document.getElementById('three-canvas');
+let scene3d, camera3d, renderer3d, helmetGroup;
+let threeInited = false;
+
+function initThreeJS(W, H) {
+  scene3d = new THREE.Scene();
+  camera3d = new THREE.PerspectiveCamera(50, W / H, 0.1, 1000);
+  camera3d.position.z = 5;
+
+  renderer3d = new THREE.WebGLRenderer({ canvas: threeCanvas, alpha: true, antialias: true });
+  renderer3d.setClearColor(0x000000, 0);
+  renderer3d.setSize(W, H);
+
+  // Lighting
+  const ambLight = new THREE.AmbientLight(0x404040, 0.5);
+  scene3d.add(ambLight);
+
+  const pointLight1 = new THREE.PointLight(0x00ffff, 1.5, 100);
+  pointLight1.position.set(2, 2, 4);
+  scene3d.add(pointLight1);
+
+  const pointLight2 = new THREE.PointLight(0xffd700, 1.2, 100);
+  pointLight2.position.set(-2, -1, 3);
+  scene3d.add(pointLight2);
+
+  // Build helmet
+  helmetGroup = new THREE.Group();
+
+  // Head shell (sphere)
+  const headGeo = new THREE.SphereGeometry(1, 32, 32);
+  const headMat = new THREE.MeshStandardMaterial({
+    color: 0xcc0000,
+    metalness: 0.9,
+    roughness: 0.3,
+    emissive: 0x330000,
+    transparent: true,
+    opacity: 0.85
+  });
+  const headMesh = new THREE.Mesh(headGeo, headMat);
+  headMesh.scale.set(1, 1.15, 0.9);
+  helmetGroup.add(headMesh);
+
+  // Face plate
+  const plateGeo = new THREE.BoxGeometry(1.3, 1.0, 0.3);
+  const plateMat = new THREE.MeshStandardMaterial({
+    color: 0xffd700,
+    metalness: 0.95,
+    roughness: 0.2,
+    emissive: 0x332200,
+    transparent: true,
+    opacity: 0.8
+  });
+  const plateMesh = new THREE.Mesh(plateGeo, plateMat);
+  plateMesh.position.set(0, -0.15, 0.55);
+  helmetGroup.add(plateMesh);
+
+  // Left eye slit
+  const eyeGeo = new THREE.BoxGeometry(0.35, 0.12, 0.15);
+  const eyeMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    emissive: 0x00ffff,
+    emissiveIntensity: 2.0,
+    metalness: 0.1,
+    roughness: 0.1,
+    transparent: true,
+    opacity: 0.95
+  });
+  const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+  leftEye.position.set(-0.28, 0.05, 0.72);
+  leftEye.rotation.z = -0.15;
+  helmetGroup.add(leftEye);
+
+  const rightEye = new THREE.Mesh(eyeGeo, eyeMat.clone());
+  rightEye.position.set(0.28, 0.05, 0.72);
+  rightEye.rotation.z = 0.15;
+  helmetGroup.add(rightEye);
+
+  // Mouth slit
+  const mouthGeo = new THREE.BoxGeometry(0.6, 0.04, 0.12);
+  const mouthMat = new THREE.MeshStandardMaterial({
+    color: 0x222222,
+    metalness: 0.9,
+    roughness: 0.5,
+    emissive: 0x111111
+  });
+  const mouthMesh = new THREE.Mesh(mouthGeo, mouthMat);
+  mouthMesh.position.set(0, -0.35, 0.68);
+  helmetGroup.add(mouthMesh);
+
+  // Forehead ridge
+  const ridgeGeo = new THREE.BoxGeometry(0.8, 0.06, 0.2);
+  const ridgeMat = new THREE.MeshStandardMaterial({
+    color: 0xffd700,
+    metalness: 0.95,
+    roughness: 0.2,
+    emissive: 0x332200
+  });
+  const ridgeMesh = new THREE.Mesh(ridgeGeo, ridgeMat);
+  ridgeMesh.position.set(0, 0.35, 0.6);
+  helmetGroup.add(ridgeMesh);
+
+  scene3d.add(helmetGroup);
+  threeInited = true;
+}
+
+function updateIronMan3D(faces) {
+  if (!threeInited) return;
+
+  const W = camCanvas.width;
+  const H = camCanvas.height;
+
+  // Resize if needed
+  if (renderer3d.domElement.width !== W || renderer3d.domElement.height !== H) {
+    renderer3d.setSize(W, H);
+    camera3d.aspect = W / H;
+    camera3d.updateProjectionMatrix();
+  }
+
+  // Position overlay canvas
+  const rect = camCanvas.getBoundingClientRect();
+  threeCanvas.style.left = rect.left + 'px';
+  threeCanvas.style.top = rect.top + 'px';
+  threeCanvas.style.width = rect.width + 'px';
+  threeCanvas.style.height = rect.height + 'px';
+
+  if (faces.length > 0) {
+    helmetGroup.visible = true;
+    const face = faces[0];
+    const [top, right, bottom, left] = face.location;
+    const fcx = (left + right) / 2;
+    const fcy = (top + bottom) / 2;
+    const fw = right - left;
+
+    // Map face center to 3D coordinates
+    const nx = (fcx / W - 0.5) * 2 * (camera3d.aspect * 2.5);
+    const ny = -(fcy / H - 0.5) * 2 * 2.5;
+    const scale = (fw / W) * 5;
+
+    helmetGroup.position.set(nx, ny, 0);
+    helmetGroup.scale.set(scale, scale, scale);
+
+    // Estimate rotation from landmarks
+    if (face.landmarks && face.landmarks.length > 74) {
+      const leftEye = getEyeCenter(face.landmarks, 55, 64);
+      const rightEye = getEyeCenter(face.landmarks, 65, 74);
+      const dx = rightEye[0] - leftEye[0];
+      const dy = rightEye[1] - leftEye[1];
+      const roll = Math.atan2(dy, dx);
+      helmetGroup.rotation.z = -roll;
+
+      // Estimate yaw from eye distance vs face width
+      const eyeDist = Math.sqrt(dx * dx + dy * dy);
+      const expectedDist = fw * 0.35;
+      const yawEstimate = Math.acos(Math.min(eyeDist / expectedDist, 1));
+      // Determine direction: if left eye is closer to center, face is turning right
+      const faceCx = (leftEye[0] + rightEye[0]) / 2;
+      const bboxCx = (left + right) / 2;
+      helmetGroup.rotation.y = (faceCx < bboxCx ? yawEstimate : -yawEstimate) * 0.5;
+    } else {
+      helmetGroup.rotation.set(0, 0, 0);
+    }
+  } else {
+    helmetGroup.visible = false;
+  }
+
+  renderer3d.render(scene3d, camera3d);
+}
+
+function cycleFaceMode() {
+  const idx = FACE_MODES.indexOf(faceMode);
+  faceMode = FACE_MODES[(idx + 1) % FACE_MODES.length];
+  modeBadge.textContent = 'MODE: ' + faceMode;
+  showToast('MODE: ' + faceMode);
+
+  // Initialize Three.js on first switch to IRONMAN_3D
+  if (faceMode === 'IRONMAN_3D' && !threeInited) {
+    const W = camCanvas.width || 640;
+    const H = camCanvas.height || 480;
+    initThreeJS(W, H);
+  }
+}
+
+// --- Register modal ---
+const regModal = document.getElementById('register-modal');
+const regInput = document.getElementById('reg-input');
+const regFaceList = document.getElementById('reg-face-list');
+const regResult = document.getElementById('reg-result');
+
+function openRegisterModal() {
+  if (latestFaces.length === 0) {
+    showToast('NO FACES DETECTED');
+    return;
+  }
+
+  regFaceList.innerHTML = latestFaces.map((f, i) =>
+    `<div>[${i + 1}] ${f.name === 'unknown' ? 'Unknown' : f.name}</div>`
+  ).join('');
+
+  regResult.textContent = '';
+  regResult.className = 'result-msg';
+  regInput.value = '';
+  regModal.classList.add('active');
+
+  setTimeout(() => regInput.focus(), 100);
+}
+
+function closeRegisterModal() {
+  regModal.classList.remove('active');
+}
+
+function submitRegister() {
+  const raw = regInput.value.trim();
+  if (!raw) return;
+
+  const tokens = raw.split(/\s+/);
+  let faceIndex = 0;
+  let name = raw;
+
+  if (tokens.length >= 2 && /^\d+$/.test(tokens[0])) {
+    faceIndex = parseInt(tokens[0]) - 1;
+    name = tokens.slice(1).join(' ');
+  }
+
+  if (faceIndex < 0 || faceIndex >= latestFaces.length) {
+    regResult.textContent = `번호 ${faceIndex + 1}은 범위 밖입니다 (1~${latestFaces.length})`;
+    regResult.className = 'result-msg error';
+    return;
+  }
+
+  if (!name) {
+    regResult.textContent = '이름을 입력하세요';
+    regResult.className = 'result-msg error';
+    return;
+  }
+
+  ws.send(JSON.stringify({ type: 'register', face_index: faceIndex, name: name }));
+  regResult.textContent = 'PROCESSING...';
+  regResult.className = 'result-msg';
+}
+
+function handleRegisterResult(data) {
+  regResult.textContent = data.message;
+  regResult.className = 'result-msg ' + (data.success ? 'success' : 'error');
+  if (data.success) {
+    showToast('REGISTERED: ' + regInput.value.trim());
+    setTimeout(closeRegisterModal, 1500);
+  }
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (regModal.classList.contains('active')) {
+    if (e.key === 'Escape') closeRegisterModal();
+    else if (e.key === 'Enter') submitRegister();
+    return;
+  }
+
+  if (e.key === 'r' || e.key === 'R') openRegisterModal();
+  if (e.key === 'm' || e.key === 'M') cycleFaceMode();
+});
+
+// Toast notification
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+// Window resize: reposition overlay
+window.addEventListener('resize', () => {
+  const rect = camCanvas.getBoundingClientRect();
+  overlay.style.left = rect.left + 'px';
+  overlay.style.top = rect.top + 'px';
+  overlay.style.width = rect.width + 'px';
+  overlay.style.height = rect.height + 'px';
+  threeCanvas.style.left = rect.left + 'px';
+  threeCanvas.style.top = rect.top + 'px';
+  threeCanvas.style.width = rect.width + 'px';
+  threeCanvas.style.height = rect.height + 'px';
+});
+
+// Start
+connect();
+</script>
+</body>
+</html>

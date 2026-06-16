@@ -1,7 +1,9 @@
 """상시 마이크 청취 모듈 - openWakeWord 기반 웨이크 워드 감지 + VAD"""
 
+import subprocess
 import threading
 import time
+from pathlib import Path
 from typing import Optional, Callable
 
 import numpy as np
@@ -78,6 +80,11 @@ class AlwaysListen:
         self._clap_last_peak: float = 0.0
         self._clap_fired: bool = False
 
+        # --- TTS 중 박수 감지 ---
+        self._tts_clap_prev_quiet: bool = True
+        self._tts_clap_last_peak: float = 0.0
+        self._tts_interrupted: bool = False  # 박수로 TTS 끊은 직후 플래그
+
         # --- 웨이크 워드 감지 쿨다운 ---
         # 감지 후 5초간 재감지 방지
         self._wake_cooldown: float = 5.0
@@ -125,9 +132,13 @@ class AlwaysListen:
         )
         print("[AlwaysListen] 모델 로드 완료.")
 
+        # 이전 세션에서 남은 시그널 파일 정리
+        Path("/tmp/whisperflow-conversation-continue").unlink(missing_ok=True)
+
         self._running = True
         self._state = _STATE_IDLE if self._skip_boot_wait else _STATE_BOOT_WAIT
-        self._last_wake_time = 0.0
+        # 시작 직후 3초간 웨이크 워드 감지 방지 (잡음 오인식 방지)
+        self._last_wake_time = time.monotonic()
         self._clap_fired = False
 
         self._stream = sd.InputStream(
@@ -202,18 +213,45 @@ class AlwaysListen:
         audio_amplified = np.clip(audio_raw * self._audio_gain, -1.0, 1.0)
         audio_int16 = (audio_amplified * 32767).astype(np.int16)
 
-        with self._lock:
-            if self._state == _STATE_BOOT_WAIT:
-                self._process_clap(audio_raw, block_duration)
-            elif self._state == _STATE_IDLE:
-                self._process_wake(audio_int16, audio_raw)
-            elif self._state == _STATE_SPEECH:
-                self._process_vad(audio_raw, block_duration)
-                # 녹음 중 3밴드 오디오 레벨 전송 (파티클 반응용)
-                if self.on_audio_level:
-                    self._send_audio_bands(audio_raw)
-            elif self._state == _STATE_CONV_WAIT:
-                self._process_conv_wait(audio_raw, block_duration)
+        try:
+            # 파일 시그널 기반 conversation_continue 체크
+            conv_signal = Path("/tmp/whisperflow-conversation-continue")
+            if conv_signal.exists():
+                conv_signal.unlink(missing_ok=True)
+                # 박수로 TTS를 끊은 직후면 대화 모드 진입 무시
+                if self._tts_interrupted:
+                    self._tts_interrupted = False
+                    print("[AlwaysListen] 파일 시그널 무시 (TTS 박수 중단 직후)")
+                    return
+                with self._lock:
+                    self._state = _STATE_CONV_WAIT
+                    self._conv_wait_start = time.monotonic()
+                    self._silence_duration = 0.0
+                    self._vad_buffer = np.array([], dtype=np.float32)
+                    if self._silero_model is not None:
+                        self._silero_model.reset_states()
+                print("[AlwaysListen] 파일 시그널 → 대화 모드 진입")
+                return
+
+            with self._lock:
+                if self._state == _STATE_BOOT_WAIT:
+                    self._process_clap(audio_raw, block_duration)
+                elif self._state == _STATE_IDLE:
+                    if self._is_tts_playing():
+                        # TTS 재생 중: 웨이크 워드 대신 박수로 끊기
+                        self._process_tts_clap(audio_raw)
+                    else:
+                        self._process_wake(audio_int16, audio_raw)
+                elif self._state == _STATE_SPEECH:
+                    self._process_vad(audio_raw, block_duration)
+                    # 녹음 중 3밴드 오디오 레벨 전송 (파티클 반응용)
+                    if self.on_audio_level:
+                        self._send_audio_bands(audio_raw)
+                elif self._state == _STATE_CONV_WAIT:
+                    self._process_conv_wait(audio_raw, block_duration)
+        except Exception as e:
+            # ONNX 등 추론 에러 시 콜백이 죽지 않도록 보호
+            print(f"[AlwaysListen] 오디오 콜백 에러 (무시): {e}")
 
     def _send_audio_bands(self, audio: np.ndarray) -> None:
         """3밴드 주파수 분석 → on_audio_level 콜백으로 전달."""
@@ -273,6 +311,91 @@ class AlwaysListen:
                 self.on_double_clap()
             except Exception as e:
                 print(f"[AlwaysListen] on_double_clap 오류: {e}")
+
+    def _is_tts_playing(self) -> bool:
+        """TTS 재생 중인지 플래그 파일로 확인. 프로세스 없으면 잔여 파일 정리."""
+        flag = Path("/tmp/whisperflow-tts-playing")
+        if not flag.exists():
+            return False
+        # 플래그는 있지만 TTS 프로세스가 실제로 없으면 잔여 파일 → 정리
+        try:
+            result = subprocess.run(
+                ["pgrep", "-f", "auto-tts.sh|qwen_tts_speak|afplay.*sounds"],
+                capture_output=True, timeout=0.5,
+            )
+            if result.returncode != 0:
+                # TTS 프로세스 없음 → 잔여 플래그 제거
+                flag.unlink(missing_ok=True)
+                print("[AlwaysListen] TTS 플래그 잔류 감지 → 제거 (프로세스 없음)")
+                return False
+        except Exception:
+            pass
+        return True
+
+    def _is_clap_like(self, audio: np.ndarray) -> bool:
+        """주파수 분석으로 박수인지 말소리인지 구분.
+        박수: 고주파 비율 높음 + 짧은 임펄스
+        말소리: 저주파/중주파 위주 + 여러 프레임 지속
+        """
+        fft = np.abs(np.fft.rfft(audio))
+        freq_count = len(fft)
+        # 16kHz 기준: 저음 0~1kHz, 중음 1~3kHz, 고음 3~8kHz
+        low_end = int(freq_count * 1000 / 8000)
+        mid_end = int(freq_count * 3000 / 8000)
+        low_mid = float(np.mean(fft[:mid_end])) if mid_end > 0 else 0.001
+        high = float(np.mean(fft[mid_end:])) if freq_count > mid_end else 0
+        # 고주파 비율이 0.6 이상이면 박수 (말소리는 보통 0.2~0.4)
+        ratio = high / (low_mid + 0.001)
+        return ratio >= 0.6
+
+    def _process_tts_clap(self, audio: np.ndarray) -> None:
+        """TTS 재생 중 박수 감지 → TTS 중지 + IDLE 복귀 (녹음 아님)."""
+        amplitude = float(np.max(np.abs(audio)))
+        now = time.monotonic()
+        tts_clap_threshold = 0.3
+        is_loud = amplitude >= tts_clap_threshold
+
+        if is_loud and self._tts_clap_prev_quiet:
+            # 주파수 분석으로 박수인지 확인
+            if self._is_clap_like(audio):
+                gap = now - self._tts_clap_last_peak
+                if self._tts_clap_last_peak > 0 and 0.1 <= gap <= 0.7:
+                    # 더블 클랩 감지 → TTS만 중지, IDLE로 복귀
+                    self._tts_clap_last_peak = 0.0
+                    self._tts_clap_loud_frames = 0
+                    print("[AlwaysListen] TTS 중 더블 클랩 감지! → TTS 중지")
+                    self._tts_interrupted = True
+                    Path("/tmp/whisperflow-conversation-continue").unlink(missing_ok=True)
+                    Path("/tmp/whisperflow-tts-playing").unlink(missing_ok=True)
+                    threading.Thread(target=self._kill_tts_processes, daemon=True).start()
+                else:
+                    self._tts_clap_last_peak = now
+
+        self._tts_clap_prev_quiet = not is_loud
+
+    def _kill_tts_processes(self) -> None:
+        """TTS 프로세스를 강제 종료 + 인터럽트 응답음 재생."""
+        import random
+        for pattern in ["afplay", "qwen_tts_speak"]:
+            try:
+                subprocess.run(["pkill", "-9", "-f", pattern], capture_output=True, timeout=1)
+            except Exception:
+                pass
+        try:
+            subprocess.run(["pkill", "-9", "say"], capture_output=True, timeout=1)
+        except Exception:
+            pass
+        print("[AlwaysListen] TTS 프로세스 강제 종료 완료")
+        # 랜덤 인터럽트 응답음 재생
+        import os
+        sounds_dir = os.path.join(os.path.dirname(__file__), "static", "sounds")
+        interrupt_files = [f for f in os.listdir(sounds_dir) if f.startswith("interrupt_") and f.endswith(".wav")]
+        if interrupt_files:
+            chosen = os.path.join(sounds_dir, random.choice(interrupt_files))
+            try:
+                subprocess.Popen(["afplay", "-r", "1.4", chosen]).wait()
+            except Exception:
+                pass
 
     def _process_wake(self, audio_int16: np.ndarray, audio_f32: np.ndarray) -> None:
         """openWakeWord로 웨이크 워드 감지."""

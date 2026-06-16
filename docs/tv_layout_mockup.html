@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>65" TV 촬영 레이아웃 가이드 v3</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Orbitron:wght@400;500;700&display=swap');
+
+  :root {
+    --tv-w: 1280px;
+    --tv-h: 720px;
+    --gap: 5px;
+    --r: 8px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0e0e0e;
+    color: #e0e0e0;
+    font-family: 'Outfit', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 36px 20px 60px;
+  }
+
+  h1 { font-size: 26px; font-weight: 600; color: #fff; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #555; margin-bottom: 36px; font-weight: 300; }
+
+  /* Nav */
+  .nav {
+    display: flex; gap: 3px; margin-bottom: 28px;
+    background: #181818; border-radius: 11px; padding: 3px; border: 1px solid #252525;
+  }
+  .nav-btn {
+    padding: 11px 26px; font-family: 'Outfit'; font-size: 13px; font-weight: 500;
+    color: #666; background: transparent; border: none; border-radius: 8px;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .nav-btn:hover { color: #aaa; }
+  .nav-btn.active { color: #fff; background: #2a2a2a; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+  .nav-btn .tag {
+    display: inline-block; font-size: 10px; background: #2a2a2a; color: #666;
+    padding: 2px 6px; border-radius: 4px; margin-left: 6px;
+  }
+  .nav-btn.active .tag { background: rgba(0,140,255,0.15); color: rgba(0,180,255,0.8); }
+
+  /* Scene */
+  .scene { display: none; }
+  .scene.active { display: block; }
+
+  /* TV */
+  .tv-wrap { position: relative; margin-bottom: 20px; }
+  .tv-bezel {
+    background: #080808; border: 2px solid #222; border-radius: 14px; padding: 10px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+  }
+  .tv-screen {
+    width: var(--tv-w); height: var(--tv-h);
+    background: #000; border-radius: 4px; position: relative; overflow: hidden;
+  }
+  .tv-footer { text-align:center; margin-top:8px; font-size:11px; color:#444; letter-spacing:1px; }
+
+  /* Windows */
+  .win {
+    position: absolute; border-radius: var(--r); overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .wb {
+    height: 28px; display: flex; align-items: center; padding: 0 10px; gap: 5px; flex-shrink: 0;
+  }
+  .wd { width: 8px; height: 8px; border-radius: 50%; }
+  .dr { background: #ff5f57; } .dy { background: #febc2e; } .dg { background: #28c840; }
+  .wt {
+    font-family: 'JetBrains Mono'; font-size: 10px; margin-left: 4px; opacity: 0.5;
+  }
+  .wbody { flex: 1; overflow: hidden; position: relative; }
+
+  /* JARVIS window */
+  .w-jarvis .wb { background: #080c14; }
+  .w-jarvis .wt { color: #3388bb; }
+  .w-jarvis .wbody {
+    background: radial-gradient(ellipse at 50% 45%, #0a1628 0%, #050a12 100%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    position: relative;
+  }
+
+  /* JARVIS HUD recreation (simplified) */
+  .j-hud {
+    width: 100%; height: 100%; position: relative;
+  }
+  .j-status-top {
+    position: absolute; top: 8px; left: 0; right: 0; text-align: center;
+    font-family: 'Orbitron'; font-size: 8px; letter-spacing: 3px;
+    color: rgba(0,200,255,0.5);
+  }
+  .j-status-top .rec { color: #ff3333; }
+  .j-time {
+    position: absolute; top: 22px; left: 0; right: 0; text-align: center;
+    font-family: 'Orbitron'; font-size: 18px; font-weight: 700;
+    color: rgba(0,180,220,0.4); letter-spacing: 4px;
+  }
+
+  /* Orb */
+  .j-orb {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  }
+  .j-orb .ring {
+    position: absolute; border-radius: 50%;
+    border: 1px solid rgba(0,140,255,0.08);
+  }
+  .j-orb .r1 { border-top-color: rgba(0,160,255,0.4); animation: sp 22s linear infinite; }
+  .j-orb .r2 { border-right-color: rgba(0,180,255,0.35); animation: sp 16s linear infinite reverse; }
+  .j-orb .r3 { border-bottom-color: rgba(0,200,255,0.3); animation: sp 11s linear infinite; }
+  .j-orb .core {
+    position: absolute; border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, rgba(100,210,255,0.85) 0%, rgba(0,120,200,0.3) 55%, transparent 72%);
+    animation: pulse 3.5s ease-in-out infinite;
+  }
+  .j-orb .core-letter {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    font-family: 'Orbitron'; font-weight: 700; color: rgba(0,220,255,0.9);
+    text-shadow: 0 0 12px rgba(0,180,255,0.5);
+  }
+
+  /* JARVIS side panels */
+  .j-panel {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    font-family: 'Orbitron'; font-size: 7px; letter-spacing: 1px;
+    color: rgba(0,180,255,0.4);
+  }
+  .j-panel-l { left: 8px; text-align: right; }
+  .j-panel-r { right: 8px; text-align: left; }
+  .j-panel .j-row { margin: 4px 0; display: flex; gap: 6px; align-items: center; }
+  .j-panel-l .j-row { justify-content: flex-end; }
+  .j-val { color: rgba(0,230,255,0.7); font-weight: 500; }
+
+  /* Transcript area */
+  .j-transcript {
+    position: absolute; bottom: 12px; left: 15%; right: 15%; text-align: center;
+  }
+  .j-transcript-label {
+    font-family: 'Orbitron'; font-size: 6px; letter-spacing: 3px;
+    color: rgba(0,180,255,0.3); margin-bottom: 4px;
+  }
+  .j-transcript-text {
+    font-family: 'Outfit'; font-size: 11px; color: rgba(0,230,255,0.8);
+    line-height: 1.4;
+  }
+  .j-transcript-bar {
+    width: 60%; height: 2px; margin: 0 auto 4px;
+    background: linear-gradient(90deg, transparent, rgba(0,180,255,0.4), rgba(0,220,255,0.6), rgba(0,180,255,0.4), transparent);
+  }
+
+  /* Corner brackets */
+  .j-corner { position: absolute; width: 16px; height: 16px; }
+  .j-corner::before, .j-corner::after { content:''; position:absolute; background: rgba(0,180,255,0.2); }
+  .j-tl { top:4px; left:4px; }
+  .j-tl::before { width:12px; height:1px; top:0; left:0; }
+  .j-tl::after { width:1px; height:12px; top:0; left:0; }
+  .j-tr { top:4px; right:4px; }
+  .j-tr::before { width:12px; height:1px; top:0; right:0; }
+  .j-tr::after { width:1px; height:12px; top:0; right:0; }
+  .j-bl { bottom:4px; left:4px; }
+  .j-bl::before { width:12px; height:1px; bottom:0; left:0; }
+  .j-bl::after { width:1px; height:12px; bottom:0; left:0; }
+  .j-br { bottom:4px; right:4px; }
+  .j-br::before { width:12px; height:1px; bottom:0; right:0; }
+  .j-br::after { width:1px; height:12px; bottom:0; right:0; }
+
+  /* Terminal */
+  .w-term .wb { background: #1a1a1a; }
+  .w-term .wt { color: #aaa; }
+  .w-term .wbody {
+    background: #0d1117; padding: 10px 14px;
+    font-family: 'JetBrains Mono'; font-size: 11px; line-height: 1.65; color: #8b949e;
+  }
+  .tg { color: #3fb950; } .tb { color: #58a6ff; } .ta { color: #d29922; }
+  .tc { color: #56d4dd; } .tw { color: #c9d1d9; } .td { color: #484f58; }
+
+  /* Code */
+  .w-code .wb { background: #1e1e2e; }
+  .w-code .wt { color: #89b4fa; }
+  .w-code .wbody {
+    background: #181825; padding: 10px 14px;
+    font-family: 'JetBrains Mono'; font-size: 10px; line-height: 1.7; color: #a6adc8;
+  }
+  .ck { color: #cba6f7; } .cf { color: #89b4fa; } .cs { color: #a6e3a1; }
+  .cc { color: #585b70; } .cv { color: #f9e2af; }
+
+  /* Browser */
+  .w-brow .wb { background: #1c1c1e; }
+  .w-brow .wt { color: #aaa; }
+  .w-brow .wbody { background: #fff; }
+  .brow-url {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 10px; background: #f0f0f0; border-bottom: 1px solid #ddd;
+  }
+  .brow-url-nav { color: #999; font-size: 11px; }
+  .brow-url-bar {
+    flex: 1; background: #fff; border: 1px solid #ddd; border-radius: 10px;
+    padding: 3px 10px; font-size: 10px; color: #666; font-family: 'Outfit';
+  }
+  .brow-page { padding: 20px 28px; color: #222; font-family: 'Outfit'; }
+  .brow-page h2 { font-size: 17px; font-weight: 600; color: #111; margin-bottom: 5px; }
+  .brow-page .meta { font-size: 10px; color: #999; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid #eee; }
+  .brow-page p { font-size: 11px; line-height: 1.8; color: #444; margin-bottom: 8px; }
+  .tyc { display:inline-block; width:2px; height:13px; background:#111; animation: bk .8s step-end infinite; vertical-align: text-bottom; }
+
+  /* btop */
+  .w-btop .wb { background: #151515; }
+  .w-btop .wt { color: #6a6; }
+  .w-btop .wbody { background: #0a0a0a; padding: 8px; }
+  .bt-lbl { font-family:'JetBrains Mono'; font-size:8px; color:#5a5; margin-bottom:2px; }
+  .bt-bar { height:6px; background:#1a1a1a; border-radius:2px; margin-bottom:2px; overflow:hidden; }
+  .bt-f { height:100%; border-radius:2px; }
+  .bt-cpu { background: linear-gradient(90deg, #2a6a2a, #4cb84c); }
+  .bt-mem { background: linear-gradient(90deg, #2a4a7a, #4a8ad4); }
+  .bt-gr { height:36px; border:1px solid #1a1a1a; border-radius:3px; background:#080808; position:relative; overflow:hidden; margin-top:4px; }
+  .bt-gr-line {
+    position:absolute; bottom:0; left:0; right:0; height:100%;
+    background: linear-gradient(to top, rgba(0,180,80,0.12), transparent);
+    clip-path: polygon(0% 85%, 8% 70%, 16% 75%, 24% 55%, 32% 60%, 40% 40%, 48% 50%, 56% 35%, 64% 28%, 72% 35%, 80% 20%, 88% 30%, 96% 18%, 100% 25%, 100% 100%, 0% 100%);
+  }
+
+  /* Annotations */
+  .anno {
+    position: absolute; font-family: 'Outfit'; font-size: 10px; font-weight: 500;
+    color: #fff; background: rgba(0,110,220,0.85); padding: 3px 9px; border-radius: 4px;
+    white-space: nowrap; z-index: 10; pointer-events: none;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  }
+  .anno.soft {
+    background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.45);
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .anno.green { background: rgba(0,180,80,0.8); }
+  .anno.amber { background: rgba(200,150,0,0.8); }
+
+  /* Desc */
+  .desc {
+    width: var(--tv-w); display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 14px; margin-top: 6px;
+  }
+  .desc-card {
+    background: #151515; border: 1px solid #222; border-radius: 10px; padding: 16px 18px;
+  }
+  .desc-card h3 { font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 6px; }
+  .desc-card p { font-size: 11px; line-height: 1.6; color: #777; font-weight: 300; }
+  .desc-card .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+  .dot-blue { background: #0088dd; }
+  .dot-green { background: #22aa55; }
+  .dot-amber { background: #cc9922; }
+  .dot-purple { background: #8855cc; }
+
+  @keyframes sp { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+  @keyframes pulse { 0%,100%{opacity:.7;transform:scale(1)} 50%{opacity:1;transform:scale(1.06)} }
+  @keyframes bk { 50%{opacity:0} }
+</style>
+</head>
+<body>
+
+<h1>65" TV 촬영 레이아웃 가이드</h1>
+<p class="subtitle">3840 × 2160 — JARVIS 와이드 비율 기준 배치</p>
+
+<div class="nav">
+  <button class="nav-btn active" onclick="go('a')">안 A<span class="tag">JARVIS 상단</span></button>
+  <button class="nav-btn" onclick="go('b')">안 B<span class="tag">JARVIS 하단</span></button>
+  <button class="nav-btn" onclick="go('c')">안 C<span class="tag">블로그 작성</span></button>
+  <button class="nav-btn" onclick="go('d')">안 D<span class="tag">풀 커맨드</span></button>
+</div>
+
+<!-- ===== JARVIS HUD 재사용 템플릿 (JS로 복제) ===== -->
+<template id="jarvis-tpl">
+  <div class="j-hud">
+    <div class="j-corner j-tl"></div><div class="j-corner j-tr"></div>
+    <div class="j-corner j-bl"></div><div class="j-corner j-br"></div>
+    <div class="j-status-top">WHISPERFLOW STATUS · <span class="rec">● RECORDING</span></div>
+    <div class="j-time" id="jtime"></div>
+    <div class="j-panel j-panel-l">
+      <div style="font-size:8px; color:rgba(0,180,255,0.5); margin-bottom:6px; letter-spacing:2px;">SYSTEM</div>
+      <div class="j-row"><span>MODEL</span> <span class="j-val">LARGE-V3</span></div>
+      <div class="j-row"><span>LANG</span> <span class="j-val">KOREAN</span></div>
+      <div class="j-row"><span>OUTPUT</span> <span class="j-val">TYPE</span></div>
+      <div class="j-row"><span>TTS</span> <span class="j-val">QWEN</span></div>
+    </div>
+    <div class="j-panel j-panel-r">
+      <div style="font-size:8px; color:rgba(0,180,255,0.5); margin-bottom:6px; letter-spacing:2px;">SESSION</div>
+      <div class="j-row"><span>DURATION</span> <span class="j-val">00:03.2</span></div>
+      <div class="j-row"><span>LEVEL</span> <span class="j-val">0.65</span></div>
+      <div class="j-row"><span>MODE</span> <span class="j-val">YOUTUBE</span></div>
+      <div class="j-row"><span>TTS SPD</span> <span class="j-val">1.4x</span></div>
+    </div>
+    <div class="j-transcript">
+      <div class="j-transcript-bar"></div>
+      <div class="j-transcript-label">TRANSCRIPT OUTPUT</div>
+      <div class="j-transcript-text">자비스, 조명 밝기 올려줘</div>
+    </div>
+  </div>
+</template>
+
+<!-- ===== 안 A: JARVIS 상단 ===== -->
+<div class="scene active" id="s-a">
+  <div class="tv-wrap">
+    <div class="tv-bezel"><div class="tv-screen">
+
+      <!-- JARVIS 상단 40% -->
+      <div class="win w-jarvis" style="top:var(--gap); left:var(--gap); right:var(--gap); height:40%;">
+        <div class="wb"><span class="wd dr"></span><span class="wd dy"></span><span class="wd dg"></span><span class="wt">JARVIS UI</span></div>
+        <div class="wbody" id="ja-a">
+          <!-- orb injected by JS -->
+        </div>
+        <div class="anno" style="top:-24px; left:50%; transform:translateX(-50%);">JARVIS — 상단 전체 너비 (와이드 비율 유지)</div>
+      </div>
+
+      <!-- 터미널 — 하단 왼쪽 60% -->
+      <div class="win w-term" style="bottom:var(--gap); left:var(--gap); width:60%; top:calc(40% + var(--gap) * 2 + 28px);">
+        <div class="wb"><span class="wd dr"></span><span class="wd dy"></span><span class="wd dg"></span><span class="wt">Terminal — Claude Code</span></div>
+        <div class="wbody">
+          <div><span class="tg">❯</span> <span class="tw">python -m whisperflow --gesture --face</span></div>
+          <div><span class="td">[21:15:02]</span> <span class="tb">WhisperFlow v2.1 initialized</span></div>
+          <div><span class="td">[21:15:05]</span> <span class="tb">Gesture control ready</span></div>
+          <div><span class="td">[21:15:05]</span> <span class="tb">WebSocket :8765 listening</span></div>
+          <div style="height:6px"></div>
+          <div><span class="td">[21:16:12]</span> <span class="ta">[GESTURE]</span> <span class="tw">PUSH_DOWN → vol -10%</span></div>
+          <div><span class="td">[21:16:18]</span> <span class="ta">[GESTURE]</span> <span class="tw">SWIPE_RIGHT → next</span></div>
+          <div><span class="td">[21:17:01]</span> <span class="tc">[VOICE]</span> <span class="tw">"자비스, 조명 올려줘"</span></div>
+          <div><span class="td">[21:17:02]</span> <span class="tg">[JARVIS]</span> <span class="tw">조명 80%로 올렸습니다.</span></div>
+        </div>
+        <div class="anno green" style="bottom:-24px; left:50%; transform:translateX(-50%);">터미널 — 60%</div>
+      </div>
+
+      <!-- 코드 에디터 — 하단 오른쪽 40% -->
+      <div class="win w-code" style="bottom:var(--gap); right:var(--gap); width:calc(40% - var(--gap) * 2); top:calc(40% + var(--gap) * 2 + 28px);">
+        <div class="wb"><span class="wd dr"></span><span class="wd dy"></span><span class="wd dg"></span><span class="wt">gesture_control.py</span></div>
+        <div class="wbody">
+          <div><span class="ck">class</span> <span class="cf">GestureController</span>:</div>
+          <div>    <span class="cc"># MediaPipe hand gesture</span></div>
+          <div>    <span class="ck">def</span> <span class="cf">on_gesture</span>(<span class="cv">self</span>, g):</div>
+          <div>        <span class="ck">if</span> g == <span class="cs">"PUSH_DOWN"</span>:</div>
+          <div>            <span class="cv">self</span>.<span class="cf">volume_down</span>()</div>
+          <div>        <span class="ck">elif</span> g == <span class="cs">"PULL_UP"</span>:</div>
+          <div>            <span class="cv">self</span>.<span class="cf">volume_up</span>()</div>
+          <div>        <span class="ck">elif</span> g == <span class="cs">"SWIPE_RIGHT"</span>:</div>
+          <div>            <span class="cv">self</span>.<span class="cf">next_track</span>()</div>
+        </div>
+        <div class="anno amber" style="bottom:-24px; left:50%; transform:translateX(-50%);">코드 에디터 — 40%</div>
+      </div>
+
+    </div></div>
+    <div class="tv-footer">안 A — JARVIS 상단 배치 (제스처 데모)</div>
+  </div>
+  <div class="desc">
+    <div class="desc-card"><h3><span class="dot dot-blue"></span>JARVIS 상단 40%</h3><p>와이드 비율 그대로 유지. 상단에서 시선을 끌고, 제스처 시 손이 화면 아래쪽에서 올라오는 구도.</p></div>
+    <div class="desc-card"><h3><span class="dot dot-green"></span>터미널 60%</h3><p>하단 왼쪽에 넓게. 제스처/음성 로그가 메인 콘텐츠. 폰트 크게 설정.</p></div>
+    <div class="desc-card"><h3><span class="dot dot-amber"></span>코드 에디터 40%</h3><p>하단 오른쪽. 관련 소스코드 표시. 기술적 깊이 연출.</p></div>
+  </div>
+</div>
+
+<!-- ===== 안 B: JARVIS 하단 ===== -->
+<div class="scene" id="s-b">
+  <div class="tv-wrap">
+    <div class="tv-bezel"><div class="tv-screen">
+
+      <!-- 터미널 — 상단 왼쪽 60% -->
+      <div class="win w-term" style="top:var(--gap); left:var(--gap); width:60%; height:58%;">
+        <div class="wb"><span class="wd dr"></span><span class="wd dy"></span><span class="wd dg"></span><span class="wt">Terminal — Claude Code</span></div>
+        <div class="wbody">
+          <div><span class="tg">❯</span> <span class="tw">python -m whisperflow --gesture --face</span></div>
+          <div><span class="td">[21:15:02]</span> <span class="tb">WhisperFlow v2.1 initialized</span></div>
+          <div><span class="td">[21:15:05]</span> <span class="tb">Gesture control: MediaPipe ready</span></div>
+          <div><span class="td">[21:15:05]</span> <span class="tb">Face recognition: 3 faces</span></div>
+          <div><span class="td">[21:15:06]</span> <span class="tb">WebSocket :8765 listening</span></div>
+          <div style="height:6px"></div>
+          <div><span class="td">[21:16:12]</span> <span class="ta">[GESTURE]</span> <span class="tw">PUSH_DOWN → vol -10%</span></div>
+          <div><span class="td">[21:16:18]</span> <span class="ta">[GESTURE]</span> <span class="tw">SWIPE_RIGHT → next</span></div>
+          <div><span class="td">[21:17:01]</span> <span class="tc">[VOICE]</span> <span class="tw">"자비스, 조명 올려줘"</span></div>
+          <div><span class="td">[21:17:02]</span> <span class="tg">[JARVIS]</span> <span class="tw">조명 80%로 올렸습니다.</span></div>
+          <div style="height:6px"></div>
+          <div><span class="tg">❯</span> <span style="display:inline-block;width:8px;height:14px;background:#3fb950;animation:bk 1s step-end infinite;vertical-align:text-bottom;"></span></div>
+        </div>
+        <div class="anno green" style="top:-24px; left:50%; transform:translateX(-50%);">터미널 — 메인 (상단 좌 60%)</div>
+      </div>
+
+      <!-- 코드 에디터 — 상단 오른쪽 40% -->
+      <div class="win w-code" style="top:var(--gap); right:var(--gap); width:calc(40% - var(--gap) * 2); height:58%;">
+        <div class="wb"><span class="wd dr"></span><span class="wd dy"></span><span class="wd dg"></span><span class="wt">gesture_control.py</span></div>
+        <div class="wbody">
+          <div><span class="ck">class</span> <span class="cf">GestureController</span>:</div>
+          <div>    <span class="cc"># MediaPipe hand gesture</span></div>
+          <div>    <span class="ck">def</span> <span class="cf">on_gesture</span>(<span class="cv">self</span>, g):</div>
+          <div>        <span class="ck">if</span> g == <span class="cs">"PUSH_DOWN"</span>:</div>
+          <div>            <span class="cv">self</span>.<span class="cf">volume_down</span>()</div>
+          <div>        <span class="ck">elif</span> g == <span class="cs">"PULL_UP"</span>:</div>
+          <div>            <span class="cv">self</span>.<span class="cf">volume_up</span>()</div>
+          <div>        <span class="ck">elif</span> g == <span class="cs">"SWIPE_RIGHT"</span>:</div>
+          <div>            <span class="cv">self</span>.<span class="cf">next_track</span>()</div>
+          <div></div>
+          <div>    <span class="ck">def</span> <span class="cf">volume_down</span>(<span class="cv">self</span>):</div>
+          <div>        subprocess.run([<span class="cs">"osascript"</span>,</div>
+        </div>
+        <div class="anno amber" style="top:-24px; right:0;">코드 에디터 (상단 우 40%)</div>
+      </div>
+
+      <!-- JARVIS 하단 38% -->
+      <div class="win w-jarvis" style="bottom:var(--gap); left:var(--gap); right:var(--gap); height:38%;">
+        <div class="wb"><span class="wd dr"></span><span class="wd dy"></span><span class="wd dg"></span><span class="wt">JARVIS UI</span></div>
+        <div class="wbody" id="ja-b"></div>
+        <div class="anno" style="bottom:-24px; left:50%; transform:translateX(-50%);">JARVIS — 하단 전체 너비 (손 제스처와 같은 높이)</div>
+      </div>
+
+    </div></div>
+    <div class="tv-footer">안 B — JARVIS 하단 배치 (제스처와 가까운 위치)</div>
+  </div>
+  <div class="desc">
+    <div class="desc-card"><h3><span class="dot dot-blue"></span>JARVIS 하단 38%</h3><p>카메라 앞에서 제스처하는 손과 JARVIS가 같은 높이. "손으로 JARVIS를 조종하는" 구도가 자연스러움.</p></div>
+    <div class="desc-card"><h3><span class="dot dot-green"></span>터미널 상단</h3><p>로그가 위에서 흘러내림. 시선이 위→아래로 자연스럽게 이동.</p></div>
+    <div class="desc-card"><h3><span class="dot dot-amber"></span>추천 배치</h3><p>제스처 데모에 가장 적합. 시청자가 "손 움직임 → JARVIS 반응"을 한눈에 봄.</p></div>
+  </div>
+</div>
+
+<!-- ===== 안 C: 블로그 작성 ===== -->
+<div class="scene" id="s-c">
+  <div class="tv-wrap">
+    <div class="tv-bezel"><div class="tv-screen">
+
+      <!-- JARVIS — 상단 좁게 28% -->
+      <div class="win w-jarvis" style="top:var(--gap); left:var(--gap); right:var(--gap); height:28%;">
+        <div class="wb"><span class="wd dr"></span><span class="wd dy"></span><span class="wd dg"></span><span class="wt">JARVIS UI</span></div>
+        <div class="wbody" id="ja-c"></div>
+        <div class="anno" style="top:-24px; left:50%; transform:translateX(-50%);">JARVIS — 상단 축소 (28%)</div>
+      </div>
+
+      <!-- 브라우저 — 하단 메인 70% -->
+      <div class="win w-brow" style="bottom:var(--gap); left:var(--gap); width:70%; top:calc(28% + var(--gap) * 2 + 28px);">
+        <div class="wb"><span class="wd dr"></span><span class="wd dy"></span><span class="wd dg"></span><span class="wt">blog.example.com</span></div>
+        <div class="wbody">
+          <div class="brow-url">
+            <span class="brow-url-nav">← → ↻</span>
+            <div class="brow-url-bar">https://blog.example.com/editor/new-post</div>
+          </div>
+          <div class="brow-page">
+            <h2>AI 음성 비서로 스마트홈을 제어하는 방법</h2>
+            <div class="meta">2026년 4월 28일 · WhisperFlow 프로젝트</div>
+            <p>최근 AI 기술의 발전으로 음성 인식의 정확도가 비약적으로 향상되었습니다. 특히 OpenAI의 Whisper 모델은 다국어 음성 인식에서 놀라운 성능을 보여주고 있죠.</p>
+            <p>오늘은 WhisperFlow를 활용해서 손 제스처와 음성 명령으로 스마트홈을 제어하는 과정을<span class="tyc"></span></p>
+          </div>
+        </div>
+        <div class="anno green" style="bottom:-24px; left:50%; transform:translateX(-50%);">브라우저 — 메인 (70%)</div>
+      </div>
+
+      <!-- 터미널 — 하단 오른쪽 좁게 -->
+      <div class="win w-term" style="bottom:var(--gap); right:var(--gap); width:calc(30% - var(--gap) * 2); top:calc(28% + var(--gap) * 2 + 28px);">
+        <div class="wb"><span class="wd dr"></span><span class="wd dy"></span><span class="wd dg"></span><span class="wt">WhisperFlow log</span></div>
+        <div class="wbody">
+          <div><span class="td">[21:20]</span> <span class="tc">[VOICE]</span></div>
+          <div><span class="tw">"블로그 글 작성해줘"</span></div>
+          <div><span class="td">[21:20]</span> <span class="tg">[JARVIS]</span></div>
+          <div><span class="tw">에디터를 열었습니다.</span></div>
+          <div style="height:4px"></div>
+          <div><span class="td">[21:21]</span> <span class="tc">[VOICE]</span></div>
+          <div><span class="tw">"제목은 AI 음성 비서..."</span></div>
+          <div><span class="td">[21:21]</span> <span class="tg">[JARVIS]</span></div>
+          <div><span class="tw">제목을 입력했습니다.</span></div>
+          <div style="height:4px"></div>
+          <div><span class="td">[21:22]</span> <span class="ta">[GESTURE]</span></div>
+          <div><span class="tw">SWIPE_DOWN → scroll</span></div>
+        </div>
+        <div class="anno amber" style="bottom:-24px; right:0;">로그 (30%)</div>
+      </div>
+
+    </div></div>
+    <div class="tv-footer">안 C — 블로그 작성 모드</div>
+  </div>
+  <div class="desc">
+    <div class="desc-card"><h3><span class="dot dot-blue"></span>JARVIS 축소</h3><p>상단 28%로 줄여서 존재감은 유지하되 브라우저에 공간 양보. 와이드 비율 유지됨.</p></div>
+    <div class="desc-card"><h3><span class="dot dot-green"></span>브라우저 70%</h3><p>블로그 에디터가 주인공. 음성으로 글을 받아쓰는 모습이 시청자에게 명확히 보임.</p></div>
+    <div class="desc-card"><h3><span class="dot dot-amber"></span>터미널 30%</h3><p>오른쪽에 좁게. 음성/제스처 로그만 보조적으로 표시.</p></div>
+  </div>
+</div>
+
+<!-- ===== 안 D: 풀 커맨드 ===== -->
+<div class="scene" id="s-d">
+  <div class="tv-wrap">
+    <div class="tv-bezel"><div class="tv-screen">
+
+      <!-- JARVIS — 상단 35% -->
+      <div class="win w-jarvis" style="top:var(--gap); left:var(--gap); right:var(--gap); height:35%;">
+        <div class="wb"><span class="wd dr"></span><span class="wd dy"></span><span class="wd dg"></span><span class="wt">JARVIS UI</span></div>
+        <div class="wbody" id="ja-d"></div>
+        <div class="anno" style="top:-24px; left:50%; transform:translateX(-50%);">JARVIS — 35%</div>
+      </div>
+
+      <!-- Claude Code — 하단 좌1 -->
+      <div class="win w-term" style="bottom:var(--gap); left:var(--gap); width:calc(33.3% - var(--gap)); top:calc(35% + var(--gap) * 2 + 28px);">
+        <div class="wb"><span class="wd dr"></span><span class="wd dy"></span><span class="wd dg"></span><span class="wt">Claude Code</span></div>
+        <div class="wbody">
+          <div><span class="tg">❯</span> <span class="tw">claude</span></div>
+          <div><span class="td">[Claude]</span> <span class="tb">How can I help?</span></div>
+          <div style="height:4px"></div>
+          <div><span class="tg">❯</span> <span class="tw">제스처에 HUE 연동 추가</span></div>
+          <div><span class="td">[Claude]</span> <span class="tw">gesture_control.py에</span></div>
+          <div><span class="tw">HUE 코드를 추가합니다.</span></div>
+          <div style="height:3px"></div>
+          <div><span class="td">[editing]</span> <span class="ta">hue_controller.py</span></div>
+        </div>
+        <div class="anno green" style="bottom:-24px; left:50%; transform:translateX(-50%);">Claude Code</div>
+      </div>
+
+      <!-- 코드 에디터 — 하단 중앙 -->
+      <div class="win w-code" style="bottom:var(--gap); left:calc(33.3% + var(--gap)); width:calc(33.3% - var(--gap)); top:calc(35% + var(--gap) * 2 + 28px);">
+        <div class="wb"><span class="wd dr"></span><span class="wd dy"></span><span class="wd dg"></span><span class="wt">hue_controller.py</span></div>
+        <div class="wbody">
+          <div><span class="ck">import</span> <span class="cf">requests</span></div>
+          <div></div>
+          <div><span class="ck">class</span> <span class="cf">HueController</span>:</div>
+          <div>    <span class="ck">def</span> <span class="cf">__init__</span>(<span class="cv">self</span>):</div>
+          <div>        <span class="cv">self</span>.ip = <span class="cs">"192.168.0.2"</span></div>
+          <div>    <span class="ck">def</span> <span class="cf">brightness</span>(<span class="cv">self</span>, v):</div>
+          <div>        <span class="cv">self</span>._send({<span class="cs">"bri"</span>: v})</div>
+        </div>
+        <div class="anno amber" style="bottom:-24px; left:50%; transform:translateX(-50%);">코드 에디터</div>
+      </div>
+
+      <!-- btop — 하단 우측 -->
+      <div class="win w-btop" style="bottom:var(--gap); right:var(--gap); width:calc(33.3% - var(--gap)); top:calc(35% + var(--gap) * 2 + 28px);">
+        <div class="wb"><span class="wd dr"></span><span class="wd dy"></span><span class="wd dg"></span><span class="wt">btop</span></div>
+        <div class="wbody">
+          <div class="bt-lbl">CPU 38%</div>
+          <div class="bt-bar"><div class="bt-f bt-cpu" style="width:38%"></div></div>
+          <div class="bt-bar"><div class="bt-f bt-cpu" style="width:52%"></div></div>
+          <div class="bt-bar"><div class="bt-f bt-cpu" style="width:28%"></div></div>
+          <div class="bt-bar"><div class="bt-f bt-cpu" style="width:61%"></div></div>
+          <div style="height:4px"></div>
+          <div class="bt-lbl">MEM 54%</div>
+          <div class="bt-bar"><div class="bt-f bt-mem" style="width:54%"></div></div>
+          <div style="height:4px"></div>
+          <div class="bt-lbl">NETWORK</div>
+          <div class="bt-gr"><div class="bt-gr-line"></div></div>
+        </div>
+        <div class="anno" style="bottom:-24px; right:0; background:rgba(100,60,180,0.8);">시스템 모니터</div>
+      </div>
+
+    </div></div>
+    <div class="tv-footer">안 D — 풀 커맨드 센터 (빈 공간 제로)</div>
+  </div>
+  <div class="desc">
+    <div class="desc-card"><h3><span class="dot dot-blue"></span>JARVIS 35%</h3><p>상단에 와이드로 깔림. 모든 시나리오에서 위치 동일 — 촬영 일관성.</p></div>
+    <div class="desc-card"><h3><span class="dot dot-green"></span>하단 3분할</h3><p>Claude Code + 코드 에디터 + btop. 정보 밀도 최대. "해커 감성" 극대화.</p></div>
+    <div class="desc-card"><h3><span class="dot dot-purple"></span>시나리오 전환</h3><p>촬영 중 시나리오 바꿀 때 JARVIS는 그대로, 하단 창만 교체하면 됨.</p></div>
+  </div>
+</div>
+
+<script>
+  // Tab switching
+  function go(id) {
+    document.querySelectorAll('.scene').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('s-' + id).classList.add('active');
+    event.target.closest('.nav-btn').classList.add('active');
+  }
+
+  // Inject JARVIS orbs into each scene
+  function createOrb(containerId, size) {
+    const c = document.getElementById(containerId);
+    if (!c) return;
+
+    const s = size;
+    const half = s / 2;
+    const r2 = s * 0.78, r3 = s * 0.58, r4 = s * 0.42;
+    const coreS = s * 0.28;
+
+    c.innerHTML = `
+      <div class="j-hud">
+        <div class="j-corner j-tl"></div><div class="j-corner j-tr"></div>
+        <div class="j-corner j-bl"></div><div class="j-corner j-br"></div>
+        <div class="j-status-top">WHISPERFLOW STATUS · <span class="rec">● RECORDING</span></div>
+        <div class="j-time j-clock"></div>
+        <div class="j-panel j-panel-l">
+          <div style="font-size:8px;color:rgba(0,180,255,0.5);margin-bottom:6px;letter-spacing:2px;">SYSTEM</div>
+          <div class="j-row"><span>MODEL</span> <span class="j-val">LARGE-V3</span></div>
+          <div class="j-row"><span>LANG</span> <span class="j-val">KOREAN</span></div>
+          <div class="j-row"><span>OUTPUT</span> <span class="j-val">TYPE</span></div>
+          <div class="j-row"><span>TTS</span> <span class="j-val">QWEN</span></div>
+        </div>
+        <div class="j-panel j-panel-r">
+          <div style="font-size:8px;color:rgba(0,180,255,0.5);margin-bottom:6px;letter-spacing:2px;">SESSION</div>
+          <div class="j-row"><span>DURATION</span> <span class="j-val">00:03.2</span></div>
+          <div class="j-row"><span>LEVEL</span> <span class="j-val">0.65</span></div>
+          <div class="j-row"><span>MODE</span> <span class="j-val">YOUTUBE</span></div>
+          <div class="j-row"><span>TTS SPD</span> <span class="j-val">1.4x</span></div>
+        </div>
+        <div class="j-orb-wrap" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);">
+          <div style="position:relative;width:${s}px;height:${s}px;">
+            <div class="ring r1" style="position:absolute;width:${s}px;height:${s}px;top:0;left:0;border-radius:50%;border:1.5px solid rgba(0,140,255,0.08);border-top-color:rgba(0,160,255,0.45);animation:sp 22s linear infinite;"></div>
+            <div class="ring r2" style="position:absolute;width:${r2}px;height:${r2}px;top:${(s-r2)/2}px;left:${(s-r2)/2}px;border-radius:50%;border:1.5px solid rgba(0,140,255,0.06);border-right-color:rgba(0,180,255,0.35);animation:sp 16s linear infinite reverse;"></div>
+            <div class="ring r3" style="position:absolute;width:${r3}px;height:${r3}px;top:${(s-r3)/2}px;left:${(s-r3)/2}px;border-radius:50%;border:1.5px solid rgba(0,140,255,0.05);border-bottom-color:rgba(0,200,255,0.3);animation:sp 11s linear infinite;"></div>
+            <div class="ring r4" style="position:absolute;width:${r4}px;height:${r4}px;top:${(s-r4)/2}px;left:${(s-r4)/2}px;border-radius:50%;border:1px solid rgba(0,140,255,0.04);border-left-color:rgba(0,220,255,0.25);animation:sp 7s linear infinite reverse;"></div>
+            <div style="position:absolute;width:${coreS}px;height:${coreS}px;top:${(s-coreS)/2}px;left:${(s-coreS)/2}px;border-radius:50%;background:radial-gradient(circle at 40% 35%,rgba(100,210,255,0.85) 0%,rgba(0,120,200,0.3) 55%,transparent 72%);box-shadow:0 0 ${coreS}px rgba(0,140,255,0.4),0 0 ${coreS*2}px rgba(0,100,255,0.12);animation:pulse 3.5s ease-in-out infinite;">
+              <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:Orbitron;font-weight:700;font-size:${coreS*0.45}px;color:rgba(0,220,255,0.9);text-shadow:0 0 10px rgba(0,180,255,0.5);">J</div>
+            </div>
+          </div>
+        </div>
+        <div class="j-transcript">
+          <div class="j-transcript-bar"></div>
+          <div class="j-transcript-label">TRANSCRIPT OUTPUT</div>
+          <div class="j-transcript-text">자비스, 조명 밝기 올려줘</div>
+        </div>
+      </div>
+    `;
+  }
+
+  createOrb('ja-a', 160);
+  createOrb('ja-b', 140);
+  createOrb('ja-c', 100);
+  createOrb('ja-d', 120);
+
+  // Clock
+  function tick() {
+    const now = new Date();
+    const t = [now.getHours(), now.getMinutes(), now.getSeconds()].map(n => String(n).padStart(2,'0')).join(':');
+    document.querySelectorAll('.j-clock').forEach(el => el.textContent = t);
+  }
+  setInterval(tick, 1000); tick();
+</script>
+
+</body>
+</html>
