@@ -2965,6 +2965,9 @@
       return _ttsAudioEl;
     }
 
+    // TTS 음량은 서버(qwen_tts_speak.py)가 재생 중 audio_level로 보내준다.
+    // → 'audio_level' 핸들러가 targetAudio* 를 채우고, 파티클 tts_playing case가 반응.
+
     function unlockTtsAudio() {
       // Unlock AudioContext only if not already running
       const ctx = getTtsAudioCtx();
@@ -2992,6 +2995,10 @@
     function playNextTtsChunk() {
       if (ttsAudioQueue.length === 0) {
         ttsAudioPlaying = false;
+        // 주의: 여기서 targetAudio* 를 0으로 리셋하면 안 됨.
+        // 데스크톱은 브라우저 자체 재생이 막혀 큐가 즉시 비므로, 서버가 보내는
+        // audio_level 스트림을 매 청크마다 덮어써서 파티클이 안 튄다.
+        // 음성 종료(구름 복귀)는 서버의 state:idle 에서만 처리한다.
         // TTS 재생 완료 → 대기 중이던 음성 입력 시작
         if (_pendingListenAfterTts && isMobileView && !webSpeechActive) {
           _pendingListenAfterTts = false;
@@ -3051,17 +3058,26 @@
     // ============================================================
     const pCanvas = $('particleCanvas');
     const pCtx = pCanvas.getContext('2d');
-    const PARTICLE_COUNT = 250;
-    const CONNECTION_DIST = 60;
+    const PARTICLE_COUNT = 420;
+    const CONNECTION_DIST = 52;
+    const CONNECTION_DIST_SQ = CONNECTION_DIST * CONNECTION_DIST;
+    // Internal render resolution. Larger than the 500px CSS display so big
+    // audio bursts have room to expand without hitting the canvas edges.
+    // CSS display size stays 500px (set in resizeParticleCanvas) so visual
+    // scale is unchanged; only the coordinate space is roomier.
+    const PCANVAS_SIZE = 760;
+    const PCANVAS_CENTER = PCANVAS_SIZE / 2;            // 380
+    const PCANVAS_MAXR = PCANVAS_SIZE / 2 - 20;         // 360 soft circular boundary
     const particles = [];
 
     // HiDPI support + mobile sizing
     function resizeParticleCanvas() {
       const dpr = window.devicePixelRatio || 1;
       const isMobile = window.innerWidth <= 600;
-      const size = 500; // Always render at full resolution, CSS handles display size
-      pCanvas.style.width = size + 'px';
-      pCanvas.style.height = size + 'px';
+      const displaySize = 500;      // CSS display size (unchanged visually)
+      const size = PCANVAS_SIZE;    // internal coordinate space (roomier)
+      pCanvas.style.width = displaySize + 'px';
+      pCanvas.style.height = displaySize + 'px';
       pCanvas.width = size * dpr;
       pCanvas.height = size * dpr;
       pCtx.setTransform(1, 0, 0, 1, 0, 0);
@@ -3070,19 +3086,38 @@
     resizeParticleCanvas();
     window.addEventListener('resize', resizeParticleCanvas);
 
-    // Create particles in a circular distribution
+    // Create particles as a soft cloud sphere.
+    // Density falloff: pow(random, 0.6) packs more particles near the
+    // center and lets them thin out toward the edges (구름 형태).
     for (let i = 0; i < PARTICLE_COUNT; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const radius = 40 + Math.random() * 80;
+      // base 150 with falloff exponent → dense core, sparse rim
+      const radius = 18 + Math.pow(Math.random(), 0.6) * 150;
+      // depth 0.3~1.0 → back layers small/dim, front layers big/sharp
+      const depth = 0.3 + Math.random() * 0.7;
+      // ~6% bright sparkle particles get an extra glow
+      const hot = Math.random() < 0.06;
       particles.push({
-        x: 250 + Math.cos(angle) * radius,
-        y: 250 + Math.sin(angle) * radius,
+        x: PCANVAS_CENTER + Math.cos(angle) * radius,
+        y: PCANVAS_CENTER + Math.sin(angle) * radius,
         baseAngle: angle,
         baseRadius: radius,
+        depth,
+        hot,
         vx: 0, vy: 0,
-        size: 0.5 + Math.random() * 1.5,
+        // size scaled by depth so depth reads visually
+        size: (0.5 + Math.random() * 1.4) * depth,
         speed: 0.2 + Math.random() * 0.5,
         phase: Math.random() * Math.PI * 2,
+        // independent drift seeds — each particle floats on its own
+        driftSeedX: Math.random() * 1000,
+        driftSeedY: Math.random() * 1000,
+        driftSpeedX: 0.10 + Math.random() * 0.22,
+        driftSpeedY: 0.10 + Math.random() * 0.22,
+        driftAmp: 6 + Math.random() * 10,
+        // per-particle burst response for audio (소리에 튀는 정도)
+        burst: 0,
+        burstGain: 0.6 + Math.random() * 0.9,
       });
     }
 
@@ -3152,15 +3187,23 @@
 
     function animateParticles(timestamp) {
       animTime = timestamp * 0.001;
-      currentAudioLevel += (targetAudioLevel - currentAudioLevel) * 0.15;
-      currentAudioLow += (targetAudioLow - currentAudioLow) * 0.12;
-      currentAudioMid += (targetAudioMid - currentAudioMid) * 0.18;
-      currentAudioHigh += (targetAudioHigh - currentAudioHigh) * 0.2;
+      // Snappier audio tracking so per-syllable strong/weak dynamics survive
+      // (was 0.15/0.12/0.18/0.2 — too smoothed, made bursts feel uniform).
+      currentAudioLevel += (targetAudioLevel - currentAudioLevel) * 0.30;
+      currentAudioLow += (targetAudioLow - currentAudioLow) * 0.28;
+      currentAudioMid += (targetAudioMid - currentAudioMid) * 0.32;
+      currentAudioHigh += (targetAudioHigh - currentAudioHigh) * 0.35;
 
-      const cx = 250, cy = 250;
+      const cx = PCANVAS_CENTER, cy = PCANVAS_CENTER;
       const col = PARTICLE_COLORS[currentState] || PARTICLE_COLORS.idle;
 
-      pCtx.clearRect(0, 0, 500, 500);
+      // Light trail: instead of a hard clear, fade the previous frame.
+      // 'destination-out' erases by alpha so we don't tint toward black,
+      // keeping the transparent particle canvas clean over the rest of the UI.
+      pCtx.globalCompositeOperation = 'destination-out';
+      pCtx.fillStyle = 'rgba(0,0,0,0.28)';
+      pCtx.fillRect(0, 0, PCANVAS_SIZE, PCANVAS_SIZE);
+      pCtx.globalCompositeOperation = 'source-over';
 
       // Update particles based on state
       for (let i = 0; i < PARTICLE_COUNT; i++) {
@@ -3171,34 +3214,56 @@
 
         switch (currentState) {
           case 'idle': {
-            // Gentle breathing orbit — alive but calm
-            const breathe = Math.sin(t * 0.8 + p.phase) * 0.15 + 1.0;
-            const drift = Math.sin(t * 0.3 + i * 0.1) * 5;
-            const a = p.baseAngle + t * p.speed * 0.25;
-            const r = p.baseRadius * 0.7 * breathe + drift;
-            const tx = cx + Math.cos(a) * r;
-            const ty = cy + Math.sin(a) * r;
-            p.x += (tx - p.x) * 0.02;
-            p.y += (ty - p.y) * 0.02;
-            // Subtle shimmer
-            p.x += Math.sin(t * 2 + p.phase * 3) * 0.3;
-            p.y += Math.cos(t * 1.5 + p.phase * 2) * 0.3;
+            // Living cloud: each particle floats independently around its
+            // anchor point. NO shared rotation — drift is per-particle so
+            // the whole never reads as spinning one direction.
+            const breathe = Math.sin(t * 0.55 + p.phase) * 0.06 + 1.0;
+            // anchor = fixed cloud position from baseAngle/baseRadius
+            const ax = cx + Math.cos(p.baseAngle) * p.baseRadius * breathe;
+            const ay = cy + Math.sin(p.baseAngle) * p.baseRadius * breathe;
+            // organic wander = sum of two slow sines per axis (pseudo-noise)
+            const dx = (Math.sin(t * p.driftSpeedX + p.driftSeedX)
+                      + Math.sin(t * p.driftSpeedX * 0.47 + p.driftSeedX * 1.7) * 0.5)
+                      * p.driftAmp;
+            const dy = (Math.cos(t * p.driftSpeedY + p.driftSeedY)
+                      + Math.cos(t * p.driftSpeedY * 0.53 + p.driftSeedY * 1.3) * 0.5)
+                      * p.driftAmp;
+            const tx = ax + dx;
+            const ty = ay + dy;
+            // loose inertia — slides gently into place
+            p.x += (tx - p.x) * 0.03;
+            p.y += (ty - p.y) * 0.03;
+            p.burst += (0 - p.burst) * 0.08;
             break;
           }
           case 'recording': {
-            // 3밴드 음성 반응: 저음=확산, 중음=회전, 고음=떨림
-            const bassExpand = currentAudioLow * 50;    // 저음 → 바깥으로 확산
-            const midSpin = currentAudioMid * 1.2;      // 중음 → 회전 속도
-            const highJitter = currentAudioHigh * 2.5;   // 고음 → 미세 떨림
-            const a = p.baseAngle + t * p.speed * (0.6 + midSpin);
-            const baseR = p.baseRadius * 1.0 + bassExpand;
-            const wave = Math.sin(t * 2.5 + p.phase) * (3 + currentAudioMid * 10);
-            const r = baseR + wave;
-            const tx = cx + Math.cos(a) * r;
-            const ty = cy + Math.sin(a) * r;
-            p.x += (tx - p.x) * 0.05;
-            p.y += (ty - p.y) * 0.05;
-            // 고음 기반 떨림
+            // 듣기: 평소엔 구름 드리프트, 소리가 들어오면 바깥으로 팍 튐.
+            // 주파수 밴드별로 점마다 다르게 반응해서 풍성하게.
+            const breathe = Math.sin(t * 0.55 + p.phase) * 0.06 + 1.0;
+            const ax = cx + Math.cos(p.baseAngle) * p.baseRadius * breathe;
+            const ay = cy + Math.sin(p.baseAngle) * p.baseRadius * breathe;
+            // mild idle wander stays under the burst
+            const wx = Math.sin(t * p.driftSpeedX + p.driftSeedX) * p.driftAmp * 0.5;
+            const wy = Math.cos(t * p.driftSpeedY + p.driftSeedY) * p.driftAmp * 0.5;
+            // band mix varies per particle (phase) → some react to bass, some highs
+            const bandMix = 0.5 + 0.5 * Math.sin(p.phase * 2.3);
+            // 항상 도는 은은한 베이스 펄스 — 오디오 신호가 없거나 약해도
+            // 파티클이 죽지 않고 살아있게(가파른 게이트로 다 죽던 문제 해결).
+            const basePulse = (Math.sin(t * 3.0 + p.phase) * 0.5 + 0.5) * 14;
+            // 오디오 성분 — 녹음 시 전체 레벨은 항상 옴(밴드는 있으면 보너스).
+            // 큰 소리일수록 크게 튐, 게이트 제거로 약한 소리도 자연스럽게 반응.
+            const audioDrive = currentAudioLevel * (120 + bandMix * 70)
+                             + currentAudioLow * 45 + currentAudioMid * 30
+                             + currentAudioHigh * bandMix * 45;
+            const targetBurst = Math.min(300, (basePulse + audioDrive) * p.burstGain);
+            p.burst += (targetBurst - p.burst) * 0.28;
+            const r = p.baseRadius * breathe + p.burst;
+            const tx = cx + Math.cos(p.baseAngle) * r + wx;
+            const ty = cy + Math.sin(p.baseAngle) * r + wy;
+            p.x += (tx - p.x) * 0.12;
+            p.y += (ty - p.y) * 0.12;
+            // 고음 기반 미세 떨림
+            const highJitter = (currentAudioHigh + currentAudioLevel * 0.7) * 2.2;
             p.x += (Math.random() - 0.5) * highJitter;
             p.y += (Math.random() - 0.5) * highJitter;
             break;
@@ -3214,82 +3279,128 @@
             break;
           }
           case 'tts_playing': {
-            // HEARTBEAT PULSE — dramatic expand/contract
-            const heartbeat = Math.pow(Math.sin(t * 3.5), 2) * 0.8;
-            const secondPulse = Math.pow(Math.sin(t * 3.5 + 0.4), 2) * 0.3;
-            const pulse = heartbeat + secondPulse;
-            const a = p.baseAngle + t * p.speed * 0.5 + pulse * 0.2;
-            const baseR = p.baseRadius * 0.9;
-            const r = baseR + pulse * 60 + Math.sin(t * 2 + p.phase) * 10;
-            const tx = cx + Math.cos(a) * r;
-            const ty = cy + Math.sin(a) * r;
-            p.x += (tx - p.x) * 0.07;
-            p.y += (ty - p.y) * 0.07;
-            // Subtle shimmer during speech
-            p.x += Math.sin(t * 6 + p.phase) * pulse * 2;
-            p.y += Math.cos(t * 5 + p.phase) * pulse * 2;
+            // 말하기: 음성 출력에 맞춰 바깥으로 튐. 소리가 잦아들면 구름으로 복귀.
+            const breathe = Math.sin(t * 0.6 + p.phase) * 0.07 + 1.0;
+            const ax = cx + Math.cos(p.baseAngle) * p.baseRadius * breathe;
+            const ay = cy + Math.sin(p.baseAngle) * p.baseRadius * breathe;
+            const wx = Math.sin(t * p.driftSpeedX + p.driftSeedX) * p.driftAmp * 0.5;
+            const wy = Math.cos(t * p.driftSpeedY + p.driftSeedY) * p.driftAmp * 0.5;
+            const bandMix = 0.5 + 0.5 * Math.sin(p.phase * 1.9);
+            // 항상 도는 은은한 펄스(원본 heartbeat 대체) — 분석기가 값을 못 줘도
+            // 말하는 동안 시각적으로 살아있게.
+            const basePulse = (Math.pow(Math.sin(t * 3.2 + p.phase * 0.5), 2)) * 20;
+            // 실제 재생 음성에서 뽑은 레벨/밴드로 추가 튐 → 목소리에 맞춰 출렁.
+            const audioDrive = currentAudioLevel * (130 + bandMix * 70)
+                             + currentAudioLow * 50 + currentAudioMid * 34
+                             + currentAudioHigh * bandMix * 40;
+            const targetBurst = Math.min(300, (basePulse + audioDrive) * p.burstGain);
+            p.burst += (targetBurst - p.burst) * 0.26;
+            const r = p.baseRadius * breathe + p.burst;
+            const tx = cx + Math.cos(p.baseAngle) * r + wx;
+            const ty = cy + Math.sin(p.baseAngle) * r + wy;
+            p.x += (tx - p.x) * 0.10;
+            p.y += (ty - p.y) * 0.10;
+            // subtle shimmer driven by audio
+            p.x += Math.sin(t * 6 + p.phase) * currentAudioHigh * 2;
+            p.y += Math.cos(t * 5 + p.phase) * currentAudioHigh * 2;
             break;
           }
         }
 
-        // Clamp to canvas
-        p.x = Math.max(5, Math.min(495, p.x));
-        p.y = Math.max(5, Math.min(495, p.y));
+        // Soft CIRCULAR boundary (no rectangular clamp → no straight edge
+        // lines). If a particle drifts past maxR, pull it back along its
+        // radial direction only, gently, so the cloud stays round.
+        const ox = p.x - cx, oy = p.y - cy;
+        const odist = Math.sqrt(ox * ox + oy * oy);
+        if (odist > PCANVAS_MAXR) {
+          const pull = (odist - PCANVAS_MAXR) * 0.25; // soft, not a hard cut
+          const nx = ox / odist, ny = oy / odist;
+          p.x -= nx * pull;
+          p.y -= ny * pull;
+        }
       }
 
       // Dynamic connection distance based on state
-      const connDist = currentState === 'recording' ? 80 : currentState === 'tts_playing' ? 70 : CONNECTION_DIST;
+      const connDist = currentState === 'recording' ? 64 : currentState === 'tts_playing' ? 58 : CONNECTION_DIST;
+      const connDistSq = connDist * connDist;
       const lineFlicker = currentState === 'recording' ? (Math.random() * 0.5 + 0.5) : 1;
 
-      // Draw connections
+      // Draw connections. Cull with squared distance (no sqrt in the hot
+      // O(n²) path); only compute the real distance for surviving pairs.
       pCtx.lineWidth = currentState === 'tts_playing' ? 0.8 : 0.5;
       for (let i = 0; i < PARTICLE_COUNT; i++) {
+        const pi = particles[i];
         for (let j = i + 1; j < PARTICLE_COUNT; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < connDist) {
-            const alpha = (1 - dist / connDist) * col.line * lineFlicker;
+          const pj = particles[j];
+          const dx = pi.x - pj.x;
+          const dy = pi.y - pj.y;
+          const distSq = dx * dx + dy * dy;
+          if (distSq < connDistSq) {
+            const dist = Math.sqrt(distSq);
+            // deeper (front) pairs draw their links a bit stronger → depth read
+            const depthFade = (pi.depth + pj.depth) * 0.5;
+            const alpha = (1 - dist / connDist) * col.line * lineFlicker * depthFade;
             pCtx.strokeStyle = `rgba(${col.r},${col.g},${col.b},${alpha})`;
             pCtx.beginPath();
-            pCtx.moveTo(particles[i].x, particles[i].y);
-            pCtx.lineTo(particles[j].x, particles[j].y);
+            pCtx.moveTo(pi.x, pi.y);
+            pCtx.lineTo(pj.x, pj.y);
             pCtx.stroke();
           }
         }
       }
 
-      // Draw particles with state-dependent glow
+      // Draw particles. Depth shapes size + alpha so the cloud reads as
+      // layered (back = small/dim, front = big/sharp). Hot particles sparkle.
+      const audioGlow = currentState === 'recording' || currentState === 'tts_playing'
+        ? currentAudioLevel : 0;
       for (let i = 0; i < PARTICLE_COUNT; i++) {
         const p = particles[i];
+        // per-particle burst lifts brightness/size when reacting to audio
+        const burstAmt = Math.min(1, p.burst / 60);
         let glow, sz;
         switch (currentState) {
           case 'recording':
-            glow = 0.7 + currentAudioLevel * 0.3;
-            sz = p.size * (1 + currentAudioLevel * 0.8);
-            // Bright core glow
-            pCtx.shadowBlur = 4 + currentAudioLevel * 8;
-            pCtx.shadowColor = `rgba(${col.r},${col.g},${col.b},0.5)`;
+            glow = (0.55 + audioGlow * 0.35 + burstAmt * 0.3) * p.depth;
+            sz = p.size * (1 + burstAmt * 0.9);
             break;
           case 'tts_playing':
-            const pulse = Math.pow(Math.sin(animTime * 3.5), 2);
-            glow = 0.5 + pulse * 0.5;
-            sz = p.size * (1 + pulse * 0.4);
-            pCtx.shadowBlur = 3 + pulse * 6;
-            pCtx.shadowColor = `rgba(${col.r},${col.g},${col.b},0.4)`;
+            glow = (0.5 + audioGlow * 0.35 + burstAmt * 0.3) * p.depth;
+            sz = p.size * (1 + burstAmt * 0.7);
             break;
           default:
-            glow = 0.5;
+            glow = (0.35 + 0.25 * p.depth) * p.depth;
             sz = p.size;
-            pCtx.shadowBlur = 2;
-            pCtx.shadowColor = `rgba(${col.r},${col.g},${col.b},0.2)`;
         }
-        pCtx.fillStyle = `rgba(${col.r},${col.g},${col.b},${glow})`;
+        // depth-based base blur; audio adds a touch
+        if (p.hot) {
+          // sparkle particles glow regardless of state
+          pCtx.shadowBlur = 6 + p.depth * 6 + audioGlow * 6;
+          pCtx.shadowColor = `rgba(${col.r},${col.g},${col.b},${0.5 * p.depth})`;
+          glow = Math.min(1, glow + 0.35);
+        } else {
+          pCtx.shadowBlur = (2 + audioGlow * 6) * p.depth;
+          pCtx.shadowColor = `rgba(${col.r},${col.g},${col.b},${0.3 * p.depth})`;
+        }
+        pCtx.fillStyle = `rgba(${col.r},${col.g},${col.b},${Math.min(1, glow)})`;
         pCtx.beginPath();
-        pCtx.arc(p.x, p.y, sz, 0, Math.PI * 2);
+        pCtx.arc(p.x, p.y, Math.max(0.3, sz), 0, Math.PI * 2);
         pCtx.fill();
       }
       pCtx.shadowBlur = 0;
+
+      // Core glow — soft central light that brightens with audio.
+      const coreBase = currentState === 'idle' ? 0.05 : 0.08;
+      const coreAlpha = coreBase + audioGlow * 0.18;
+      if (coreAlpha > 0.01) {
+        const coreR = 70 + audioGlow * 40;
+        const grad = pCtx.createRadialGradient(cx, cy, 0, cx, cy, coreR);
+        grad.addColorStop(0, `rgba(${col.r},${col.g},${col.b},${coreAlpha})`);
+        grad.addColorStop(1, `rgba(${col.r},${col.g},${col.b},0)`);
+        pCtx.fillStyle = grad;
+        pCtx.beginPath();
+        pCtx.arc(cx, cy, coreR, 0, Math.PI * 2);
+        pCtx.fill();
+      }
 
       // Audio level display
       valAudioLevel.textContent = currentAudioLevel.toFixed(2);
@@ -3711,7 +3822,11 @@
                 stopWaveformAnim();
               }
             } else if (newState === 'idle') {
+              // 음성 종료 → 구름 복귀 (TTS 음량 구동값의 유일한 권위적 리셋 지점)
               targetAudioLevel = 0;
+              targetAudioLow = 0;
+              targetAudioMid = 0;
+              targetAudioHigh = 0;
               stopActiveTyping();
               stopWaveformAnim();
               activeOutputMsg = null;
