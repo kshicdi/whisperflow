@@ -6,12 +6,13 @@ Usage: python make_10k_gif.py
 import math
 import random
 import sys
+from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 W, H = 600, 600
 FONT_PATH = "/System/Library/Fonts/AppleSDGothicNeo.ttc"
-OUT_PATH = "/Users/USER/Desktop/10k_thanks.gif"
+OUT_PATH = str(Path.home() / "Desktop" / "10k_thanks.gif")
 
 TOTAL_FRAMES = 72  # 72 frames = ~3.6s at 50ms per frame
 FRAME_DURATION_MS = 50

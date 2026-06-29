@@ -8,12 +8,13 @@ Usage:
 """
 import sys
 import time
+from pathlib import Path
 
 import cv2
 import numpy as np
 from PIL import Image
 
-GIF_PATH = sys.argv[1] if len(sys.argv) > 1 else "/Users/USER/Desktop/10k_thanks.gif"
+GIF_PATH = sys.argv[1] if len(sys.argv) > 1 else str(Path.home() / "Desktop" / "10k_thanks.gif")
 WIN_NAME = "10K 팔로우 감사합니다 🎉  [Q/ESC 종료]"
 
 

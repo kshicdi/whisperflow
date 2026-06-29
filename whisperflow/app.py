@@ -683,8 +683,12 @@ class WhisperFlowApp(rumps.App):
             urllib.request.urlopen('http://localhost:9093/health', timeout=2)
             log("[TTS] Qwen TTS 서버 이미 실행 중")
         except Exception:
-            venv_python = "/Users/USER/Documents/qwen3-tts-apple-silicon/.venv/bin/python"
-            serve_script = "/Users/USER/Documents/qwen3-tts-apple-silicon/serve.py"
+            qwen_dir = os.environ.get('QWEN_TTS_DIR')
+            if not qwen_dir:
+                log("[TTS] QWEN_TTS_DIR 환경변수 미설정, Qwen TTS 서버 자동 시작 스킵")
+                return
+            venv_python = os.path.join(qwen_dir, ".venv", "bin", "python")
+            serve_script = os.path.join(qwen_dir, "serve.py")
             if os.path.exists(serve_script):
                 try:
                     subprocess.Popen(
@@ -1380,16 +1384,18 @@ class WhisperFlowApp(rumps.App):
                     import urllib.request
                     r = urllib.request.urlopen('http://localhost:9093/health', timeout=2)
                     if r.status == 200:
-                        cmd = ["/usr/bin/python3", "/Users/USER/.claude/hooks/qwen_tts_speak.py"]
-                        if not config.tts_say_first:
-                            cmd.append("--no-say")
-                        cmd.append(clipboard_text)
-                        subprocess.Popen(
-                            cmd,
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL
-                        )
-                        return
+                        qwen_hook = os.environ.get('QWEN_TTS_HOOK')
+                        if qwen_hook and os.path.exists(qwen_hook):
+                            cmd = ["/usr/bin/python3", qwen_hook]
+                            if not config.tts_say_first:
+                                cmd.append("--no-say")
+                            cmd.append(clipboard_text)
+                            subprocess.Popen(
+                                cmd,
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL
+                            )
+                            return
                 except Exception:
                     pass
                 # fallback

@@ -19,7 +19,7 @@ from typing import List, Optional
 TARS_MODE_FLAG = os.path.expanduser("~/.whisperflow_tars_mode")
 
 # --- 음성 리소스 ---
-TARS_FILLERS_DIR = "/Users/USER/Documents/아이디어프로그램/06.TARS-Robot/design/voice_samples/fillers"
+TARS_FILLERS_DIR = os.environ.get('TARS_FILLERS_DIR', "")
 
 # --- Wake Word ---
 TARS_WAKE_WORD = "hey_tars"  # openWakeWord model name
