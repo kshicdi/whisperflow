@@ -27,6 +27,7 @@ dist/
 
 # Config (개인 설정)
 # ~/.config/whisperflow/config.json
+~/.config/whisperflow/hue_config.json
 
 # Playwright MCP
 .playwright-mcp/

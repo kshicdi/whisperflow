@@ -67,6 +67,7 @@ python -m whisperflow
 
 ## 설정
 
+### 기본 설정
 설정 파일: `~/.config/whisperflow/config.json`
 
 ```json
@@ -78,6 +79,21 @@ python -m whisperflow
   "sample_rate": 16000
 }
 ```
+
+### Philips Hue 통합 (선택사항)
+Hue 조명을 JARVIS 상태에 따라 제어하려면 설정 파일을 생성합니다:
+`~/.config/whisperflow/hue_config.json`
+
+```json
+{
+  "enabled": true,
+  "bridge_ip": "192.168.1.X",
+  "api_key": "your-hue-api-key-here",
+  "light_id": 26
+}
+```
+
+Hue API 키 획득: [Philips Hue Developer Guide](https://developers.meethue.com/develop/get-started-3/)
 
 ### 모델 비교
 | 모델 | 정확도 | 속도 | 메모리 |

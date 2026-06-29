@@ -19,10 +19,10 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG = {
-    "bridge_ip": "192.168.1.X",
-    "api_key": "REDACTED_HUE_API_KEY",
+    "bridge_ip": "",
+    "api_key": "",
     "light_id": 26,
-    "enabled": True,
+    "enabled": False,
 }
 
 CONFIG_PATH = Path.home() / ".config" / "whisperflow" / "hue_config.json"
