@@ -25,7 +25,8 @@ OpenAI Whisper 모델을 로컬에서 실행하여 음성을 텍스트로 변환
 ### 설치 방법
 
 ```bash
-cd /Users/USER/Documents/아이디어프로그램/05.Whisperflow
+git clone https://github.com/yourusername/WhisperFlow.git
+cd WhisperFlow
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -33,15 +34,14 @@ pip install -r requirements.txt
 
 ## 실행
 
-### 방법 1: 바탕화면 실행 파일
-`~/Desktop/WhisperFlow.command` 더블클릭
-
-### 방법 2: 터미널
+### 방법 1: 터미널
 ```bash
-cd /Users/USER/Documents/아이디어프로그램/05.Whisperflow
 source venv/bin/activate
 python -m whisperflow
 ```
+
+### 방법 2: 바탕화면 실행 파일 (선택사항)
+`setup.sh`를 실행하여 바탕화면 단축아이콘을 생성할 수 있습니다.
 
 ## 사용법
 

@@ -943,7 +943,7 @@ def run_web(camera_index: int = 0, http_port: int = 9000, ws_port: int = 9001):
             pass  # 로그 억제
 
     def start_http_server():
-        httpd = http.server.HTTPServer(('0.0.0.0', http_port), StaticHandler)
+        httpd = http.server.HTTPServer(('127.0.0.1', http_port), StaticHandler)
         print(f"[FaceWeb] HTTP 서버 시작: http://localhost:{http_port}/", flush=True)
         httpd.serve_forever()
 

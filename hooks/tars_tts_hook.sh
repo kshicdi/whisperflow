@@ -8,13 +8,14 @@
 #   3. 중복 방지 (해시)
 #   4. 필러 재생 -> Qwen TTS(clone:tars) + TARS_FX 후처리 -> 재생
 
-TARS_FILE="/Users/USER/.whisperflow_tars_mode"
+TARS_FILE="$HOME/.whisperflow_tars_mode"
 [ -f "$TARS_FILE" ] || exit 0
 
 # JSONL 기록 대기
 sleep 0.5
 
-RESPONSE=$(/usr/bin/python3 /Users/USER/.claude/hooks/extract_response.py 2>/dev/null)
+EXTRACT_RESPONSE_SCRIPT="${CLAUDE_HOOKS_DIR:-$HOME/.claude/hooks}/extract_response.py"
+RESPONSE=$(/usr/bin/python3 "$EXTRACT_RESPONSE_SCRIPT" 2>/dev/null)
 [ -z "$RESPONSE" ] && exit 0
 
 # 같은 응답 중복 방지
@@ -34,8 +35,8 @@ LOCKFILE="/tmp/whisperflow-tars-hash.lock"
 [ $? -ne 0 ] && exit 0
 
 # --- TARS 필러 재생 (응답 생성 대기 중 "Hmm..." 등) ---
-FILLERS_DIR="/Users/USER/Documents/아이디어프로그램/06.TARS-Robot/design/voice_samples/fillers"
-if [ -d "$FILLERS_DIR" ]; then
+FILLERS_DIR="${TARS_FILLERS_DIR:-}"
+if [ -n "$FILLERS_DIR" ] && [ -d "$FILLERS_DIR" ]; then
     FILLER_FILES=("$FILLERS_DIR"/*.wav)
     FILLER_COUNT=${#FILLER_FILES[@]}
     if [ "$FILLER_COUNT" -gt 0 ]; then

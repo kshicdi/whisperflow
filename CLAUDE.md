@@ -65,7 +65,8 @@ python -m whisperflow
 
 드라이브 모드에서 자비스 스타일로 응답. "연기해줘"/"역할극" 포함 시 도구 실행 없이 대사만 응답.
 
-## Second Brain (세컨드 브레인)
-- vault 경로: `~/Documents/idea/07second-brain/vault/`
-- 개인정보: `~/Documents/idea/07second-brain/_private/`
-- 빠른 메모: `~/Documents/idea/07second-brain/vault/inbox/`
+## Second Brain (세컨드 브레인) - 선택사항
+Obsidian vault와 통합하려면 다음 환경변수를 설정하세요:
+- `OBSIDIAN_VAULT_PATH`: Obsidian vault의 경로
+- `HOME_ADDRESS_FILE`: 집주소가 저장된 파일 (map_navigator용)
+- 기본값: 환경변수 미설정 시 로컬 기능만 사용

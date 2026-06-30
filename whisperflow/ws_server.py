@@ -511,7 +511,7 @@ class WhisperFlowWSServer:
         try:
             async with websockets.serve(
                 self._handler,
-                "0.0.0.0",
+                "127.0.0.1",
                 WS_PORT,
                 process_request=self._process_request,
                 max_size=10 * 1024 * 1024,  # 10MB for browser screenshots

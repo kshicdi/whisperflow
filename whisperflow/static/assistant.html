@@ -648,7 +648,7 @@
     ? `wss://${window.location.host}`
     : `ws://${window.location.hostname}:8767`;
   const RECONNECT_INTERVAL = 3000;
-  const DEFAULT_CWD = '~/Documents/idea/07second-brain';
+  const DEFAULT_CWD = '~';  // 기본값: 홈 디렉토리. 환경변수 OBSIDIAN_VAULT_PATH로 커스터마이징 가능
   const STORAGE_PREFIX = 'jarvis_messages_';
 
   // ============================================================

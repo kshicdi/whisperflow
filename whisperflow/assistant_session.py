@@ -59,13 +59,15 @@ def _load_project_map() -> str:
         return ""
 
 
-SYSTEM_PROMPT_TEMPLATE = """\
+VAULT_PATH = os.environ.get('OBSIDIAN_VAULT_PATH', '~/Documents/idea/07second-brain/vault/')
+
+SYSTEM_PROMPT_TEMPLATE = f"""\
 너는 개인 비서 Jarvis다.
-Obsidian vault: ~/Documents/idea/07second-brain/vault/
-현재 프로젝트 디렉토리: {cwd}
+Obsidian vault: {VAULT_PATH}
+현재 프로젝트 디렉토리: {{cwd}}
 간결하게 답변하고, 처리 결과는 vault에 저장해.
 
-{project_map}"""
+{{project_map}}"""
 
 
 def check_claude_cli() -> bool:

@@ -5,10 +5,12 @@
 CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 PROFILE="$HOME/.chrome-debug-profile"
 PORT=9222
-EXTENSIONS="/Users/USER/Documents/idea/project-private-a,/Users/USER/Documents/idea/project-private-b/chrome-extension,/Users/USER/Documents/idea/project-private-c"
-VENV_PYTHON="/Users/USER/Documents/아이디어프로그램/05.Whisperflow/venv/bin/python"
-JARVIS_SEND="/Users/USER/Documents/아이디어프로그램/05.Whisperflow/whisperflow/jarvis_send.py"
-BROWSER_FEED="/Users/USER/Documents/아이디어프로그램/05.Whisperflow/whisperflow/browser_feed.py"
+# 선택사항: 커스텀 확장 프로그램 경로를 CHROME_EXTENSIONS 환경변수로 설정 가능
+EXTENSIONS="${CHROME_EXTENSIONS:-}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VENV_PYTHON="$SCRIPT_DIR/venv/bin/python"
+JARVIS_SEND="$SCRIPT_DIR/whisperflow/jarvis_send.py"
+BROWSER_FEED="$SCRIPT_DIR/whisperflow/browser_feed.py"
 
 # 기존 Chrome 종료
 osascript -e 'tell application "Google Chrome" to quit' 2>/dev/null

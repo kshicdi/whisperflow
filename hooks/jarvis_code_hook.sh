@@ -5,10 +5,20 @@
 export LANG=ko_KR.UTF-8
 export LC_ALL=ko_KR.UTF-8
 
-YOUTUBE_FILE="/Users/USER/.whisperflow_youtube_tts"
+YOUTUBE_FILE="$HOME/.whisperflow_youtube_tts"
 [ -f "$YOUTUBE_FILE" ] || exit 0
 
-WHISPERFLOW_DIR="/Users/USER/Documents/아이디어프로그램/05.Whisperflow"
+# WhisperFlow 설치 위치를 환경변수로 지정 (기본값: 홈 디렉토리 탐색)
+if [ -z "$WHISPERFLOW_DIR" ]; then
+    # 일반적인 설치 경로 탐색
+    for path in "$HOME/.local/share/whisperflow" "$HOME/whisperflow" "$(dirname "$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. && pwd)")"; do
+        if [ -f "$path/whisperflow/jarvis_send.py" ]; then
+            WHISPERFLOW_DIR="$path"
+            break
+        fi
+    done
+fi
+[ -z "$WHISPERFLOW_DIR" ] && exit 0
 JARVIS_SEND="$WHISPERFLOW_DIR/whisperflow/jarvis_send.py"
 VENV_PYTHON="$WHISPERFLOW_DIR/venv/bin/python"
 [ -f "$JARVIS_SEND" ] || exit 0

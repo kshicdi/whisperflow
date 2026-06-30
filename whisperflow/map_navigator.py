@@ -1,8 +1,9 @@
 """
 map_navigator.py — 네이버 지도 / 카카오맵 경로 안내 모듈.
 
-집주소는 옵시디언 볼트에서 읽는다:
-  ~/Documents/idea/07second-brain/_private/개인연락처/집주소.md
+집주소 설정 (선택사항):
+  환경변수 HOME_ADDRESS_FILE: 집주소가 저장된 마크다운 파일 경로
+  파일 포맷: "위도: 37.1234\n경도: 126.5678" 형식
 
 URL (웹 — macOS 브라우저에서 열림):
   네이버: http://map.naver.com/index.nhn?slng=..&slat=..&stext=..&elng=..&elat=..&etext=..&menu=route&pathType=0
@@ -10,6 +11,7 @@ URL (웹 — macOS 브라우저에서 열림):
 """
 
 import logging
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -17,10 +19,7 @@ from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
 
-HOME_ADDRESS_PATH = (
-    Path.home()
-    / "Documents/idea/07second-brain/_private/개인연락처/집주소.md"
-)
+HOME_ADDRESS_PATH = os.environ.get('HOME_ADDRESS_FILE')
 
 APP_NAME = "com.whisperflow"
 
