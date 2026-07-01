@@ -32,8 +32,9 @@ dist/
 # Playwright MCP
 .playwright-mcp/
 
-# Screenshots (mockup/test)
+# Screenshots (mockup/test) - README 이미지 제외
 *.png
+!jarvis_*.png  # JARVIS UI 스크린샷은 포함
 
 # Windows build
 whisperflow_windows.zip
