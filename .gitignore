@@ -36,6 +36,8 @@ dist/
 *.png
 # JARVIS UI 스크린샷은 포함 (README용)
 !jarvis_*.png
+# 앱 아이콘(PWA/파비콘)은 포함
+!whisperflow/static/jarvis-icon-*.png
 
 # Windows build
 whisperflow_windows.zip
