@@ -2,7 +2,7 @@
 
 > macOS에서 로컬 음성인식 + AI 음성 응답 + 시각화 UI를 통합한 개인 어시스턴트
 
-![WhisperFlow JARVIS UI](./jarvis_mockup.png)
+![WhisperFlow JARVIS UI](./jarvis_idle.png)
 
 ## ✨ 핵심 기능
 
@@ -30,27 +30,81 @@
 
 ---
 
-## 🎬 JARVIS UI 데모 (Coming Soon)
+## 🎬 JARVIS UI 상태별 화면
 
-현재 개발 중인 JARVIS UI 프로토타입:
+420개 입자로 이뤄진 성운(constellation) 클라우드가 어시스턴트 상태에 따라 색과 움직임을 바꾸며,
+자비스 음성(TTS)에 실시간으로 반응합니다.
 
-### 파티클 음성 반응
-AI 응답 시 파티클이 음성에 반응하여 움직임  
-![JARVIS Particles](./jarvis_with_conversation.png)
+### 🎯 스탠바이 (STANDBY)
+음성 입력을 기다리는 대기 상태.
 
-### 입출력 UI
-음성 입력 → AI 처리 → 음성 출력 시각화  
-![JARVIS Input/Output](./jarvis_input_output.png)
+![JARVIS Idle](./jarvis_idle.png)
 
-### 브라우저 피드
-Chrome DevTools와 연동하여 실시간 웹 페이지 캡처  
+**특징:**
+- 청록색(cyan) 입자가 은은하게 부유
+- "AWAITING COMMAND" 표시
+- 낮은 부하로 상시 대기
+
+---
+
+### 🎙️ 리스닝 (RECORDING)
+단축키를 누르면 음성 입력을 감지하고, 입자가 소리에 반응해 바깥으로 퍼집니다.
+
+![JARVIS Recording](./jarvis_recording.png)
+
+**특징:**
+- 빨간색(red) 입자가 음량에 따라 폭발적으로 확산
+- 하단 "LISTENING…" 실시간 파형
+- AUDIO LEVEL 실시간 표시
+
+---
+
+### 💬 생각 중 (THINKING)
+AI가 응답을 생성하는 동안 입자가 응집·재배열됩니다.
+
+![JARVIS Thinking](./jarvis_thinking.png)
+
+**특징:**
+- 보라색(purple) 입자로 "PROCESSING QUERY" 표현
+- 상태 전환 시 부드러운 색·모션 트랜지션
+
+---
+
+### 🔊 음성 응답 (SPEAKING)
+자비스가 말할 때, TTS 음성의 음량·주파수 대역에 맞춰 입자가 실시간으로 진동합니다.
+
+![JARVIS Speaking](./jarvis_speaking.png)
+
+**특징:**
+- 초록색(green) 입자 + 중심 코어 글로우
+- "VOICE OUTPUT :: STREAMING" 표시
+- 3-band(저/중/고역) 주파수 분석으로 입자 반응
+
+---
+
+### 🌐 브라우저 피드 (선택사항)
+Chrome DevTools(CDP)와 연동하여 웹 페이지를 실시간 캡처 (목업)
+
 ![Browser Feed](./jarvis_browser_feed_mockup.png)
 
-**현재 진행률**: 
-- ✅ 파티클 효과 완성
-- ✅ 3D 모델 뷰어 완성
-- 🔄 음성 실시간 동기화 (진행 중)
-- ⏳ 우아한 UI 디자인 (예정)
+**기능:**
+- 현재 보고 있는 웹 페이지 표시
+- 음성 명령으로 브라우저 제어
+- 실시간 스크린샷 캡처
+
+---
+
+## 📊 개발 진행상황
+
+| 기능 | 상태 | 설명 |
+|------|------|------|
+| 파티클 성운 시스템 | ✅ 완성 | 420입자, 상태별 색·모션 |
+| 음성 동기화 파티클 | ✅ 완성 | TTS 음량·3-band 주파수 반응 |
+| 상태별 색상 변화 | ✅ 완성 | Standby/Recording/Thinking/Speaking |
+| 3D 모델 뷰어 | ✅ 완성 | STL 홀로그램 실시간 렌더링 |
+| 제스처 컨트롤 | ✅ 완성 | MediaPipe 손 인식 |
+| UI 디자인 개선 | ⏳ 예정 | 더 우아한 레이아웃 |
+| 모바일 반응형 | ⏳ 예정 | iPad/모바일 지원 |
 
 ## 🚀 설치 & 실행
 

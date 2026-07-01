@@ -34,7 +34,8 @@ dist/
 
 # Screenshots (mockup/test) - README 이미지 제외
 *.png
-!jarvis_*.png  # JARVIS UI 스크린샷은 포함
+# JARVIS UI 스크린샷은 포함 (README용)
+!jarvis_*.png
 
 # Windows build
 whisperflow_windows.zip
