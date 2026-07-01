@@ -1,28 +1,65 @@
-# WhisperFlow
+# 🎤 WhisperFlow — JARVIS AI 어시스턴트
 
-macOS 메뉴바에서 실행되는 실시간 음성-텍스트 변환 앱
+> macOS에서 로컬 음성인식 + AI 음성 응답 + 시각화 UI를 통합한 개인 어시스턴트
 
-## 개요
+![WhisperFlow JARVIS UI](./jarvis_mockup.png)
 
-OpenAI Whisper 모델을 로컬에서 실행하여 음성을 텍스트로 변환합니다.
-단축키로 녹음하고, 변환된 텍스트가 자동으로 커서 위치에 입력됩니다.
+## ✨ 핵심 기능
 
-## 주요 기능
+### 🎙️ 음성 인식 & 입력
+- **오프라인 STT**: OpenAI Whisper (로컬 실행, 프라이버시 보장)
+- **다국어**: 한국어, 영어, 일본어, 중국어, 자동감지
+- **단축키**: Option+Control 꾹 누르기로 녹음
+- **자동 입력**: 변환된 텍스트가 커서 위치에 자동 입력
 
-- **단축키 녹음**: `Cmd+Ctrl+Option+Shift+A` 꾹 누르기 또는 더블클릭
-- **자동 입력**: 변환된 텍스트가 커서 위치에 자동 붙여넣기
-- **오프라인 동작**: 인터넷 없이 로컬에서 처리 (프라이버시 보장)
-- **문장 줄바꿈**: 문장 끝(. ! ?)에서 자동 줄바꿈
-- **모델 선택**: tiny / base / small / medium / large-v3
-- **언어 선택**: 한국어, 영어, 일본어, 중국어, 자동감지
+### 🔊 음성 응답 (TTS)
+- **음성 합성**: Qwen TTS (자비스 목소리)
+- **AI 대화**: Claude AI와 대화 후 자동 음성 읽기
+- **모드**: 드라이브 모드, 도서관 모드, 유튜브 모드
 
-## 설치
+### 🎨 JARVIS UI (개발 중)
+- **실시간 파티클**: AI 응답에 따라 반응하는 입자 효과
+- **3D 모델 뷰어**: STL 모델 시각화
+- **음성 동기화**: 음성과 UI가 연동
+
+### 🤖 추가 기능
+- **제스처 컨트롤**: MediaPipe 손 인식으로 제스처 명령
+- **카메라 피드**: 실시간 얼굴 감지
+- **Hue 라이트**: 스마트 조명 연동 (상태 시각화)
+- **히스토리**: 음성 파일 + 변환 텍스트 자동 저장
+
+---
+
+## 🎬 JARVIS UI 데모 (Coming Soon)
+
+현재 개발 중인 JARVIS UI 프로토타입:
+
+### 파티클 음성 반응
+AI 응답 시 파티클이 음성에 반응하여 움직임  
+![JARVIS Particles](./jarvis_with_conversation.png)
+
+### 입출력 UI
+음성 입력 → AI 처리 → 음성 출력 시각화  
+![JARVIS Input/Output](./jarvis_input_output.png)
+
+### 브라우저 피드
+Chrome DevTools와 연동하여 실시간 웹 페이지 캡처  
+![Browser Feed](./jarvis_browser_feed_mockup.png)
+
+**현재 진행률**: 
+- ✅ 파티클 효과 완성
+- ✅ 3D 모델 뷰어 완성
+- 🔄 음성 실시간 동기화 (진행 중)
+- ⏳ 우아한 UI 디자인 (예정)
+
+## 🚀 설치 & 실행
 
 ### 요구사항
-- macOS 10.13+
-- Python 3.9+
+- macOS 10.13+ (Apple Silicon 권장)
+- Python 3.11+
+- 메모리: 4GB 이상
 
-### 설치 방법
+### 빠른 설치
 
 ```bash
 git clone https://github.com/yourusername/WhisperFlow.git
@@ -30,128 +67,206 @@ cd WhisperFlow
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-```
-
-## 실행
-
-### 방법 1: 터미널
-```bash
-source venv/bin/activate
 python -m whisperflow
 ```
 
-### 방법 2: 바탕화면 실행 파일 (선택사항)
-`setup.sh`를 실행하여 바탕화면 단축아이콘을 생성할 수 있습니다.
-
-## 사용법
-
-### 단축키
-| 동작 | 설명 |
-|------|------|
-| `Cmd+Ctrl+Option+Shift+A` 꾹 누르기 | 누르는 동안 녹음, 떼면 변환 |
-| `Cmd+Ctrl+Option+Shift+A` 더블클릭 | 토글 모드 (다시 누르면 종료) |
-
-### 메뉴바
-1. 🎤 아이콘 클릭
-2. "녹음 시작/중지" - 수동 녹음
-3. "모델 선택" - Whisper 모델 변경
-4. "언어 선택" - 인식 언어 변경
-5. "단축키 설정" - 키 조합 변경
-
-### 상태 아이콘
-| 아이콘 | 상태 |
-|--------|------|
-| 🎤 | 대기 중 |
-| 🔴 | 녹음 중 |
-| ⏳ | 변환 중 |
-
-## 설정
-
-### 기본 설정
-설정 파일: `~/.config/whisperflow/config.json`
-
-```json
-{
-  "model_size": "small",
-  "language": "ko",
-  "hotkey": "cmd+ctrl+option+shift+a",
-  "output_mode": "type",
-  "sample_rate": 16000
-}
-```
-
-### Philips Hue 통합 (선택사항)
-Hue 조명을 JARVIS 상태에 따라 제어하려면 설정 파일을 생성합니다:
-`~/.config/whisperflow/hue_config.json`
-
-```json
-{
-  "enabled": true,
-  "bridge_ip": "192.168.1.X",
-  "api_key": "your-hue-api-key-here",
-  "light_id": 26
-}
-```
-
-Hue API 키 획득: [Philips Hue Developer Guide](https://developers.meethue.com/develop/get-started-3/)
-
-### 모델 비교
-| 모델 | 정확도 | 속도 | 메모리 |
-|------|--------|------|--------|
-| tiny | ⭐⭐ | 가장 빠름 | ~1GB |
-| base | ⭐⭐⭐ | 빠름 | ~1GB |
-| small | ⭐⭐⭐⭐ | 보통 | ~2GB |
-| medium | ⭐⭐⭐⭐⭐ | 느림 | ~5GB |
-| large-v3 | ⭐⭐⭐⭐⭐⭐ | 가장 느림 | ~10GB |
-
-## 권한 설정
-
-### 필수 권한
+### 권한 설정 (필수)
 1. **마이크**: 시스템 설정 → 개인정보 보호 및 보안 → 마이크 → 터미널 허용
 2. **접근성**: 시스템 설정 → 개인정보 보호 및 보안 → 접근성 → 터미널 허용
 
-## 프로젝트 구조
+## 📖 사용법
+
+### 🎙️ 음성 입력
+
+**기본 단축키**: Option + Control (커스터마이징 가능)
+
+| 동작 | 설명 |
+|------|------|
+| **꾹 누르기** | 누르는 동안 녹음, 떼면 자동 변환 |
+| **더블클릭** | 토글 모드 (다시 누르면 종료) |
+
+### 🎯 메뉴바 명령어
+
+메뉴바의 🎤 아이콘에서:
+- **녹음 시작/중지**: 수동으로 녹음 제어
+- **모델 선택**: tiny/base/small/medium/large-v3 (정확도 vs 속도)
+- **언어 선택**: 한국어/영어/일본어/중국어/자동감지
+- **단축키 설정**: 기본 단축키 변경
+- **히스토리 보기**: 이전 녹음 기록
+
+### ⚙️ 고급 설정
+
+```bash
+# 사용자 정의 단축키
+# ~/.config/whisperflow/config.json에서:
+{
+  "hotkey": "option+control",      # 단축키 조합
+  "model_size": "small",           # 모델 크기
+  "language": "ko",                # 기본 언어
+  "output_mode": "type",           # 입력/클립보드
+  "sample_rate": 16000             # 샘플링 레이트
+}
+```
+
+## ⚙️ 설정
+
+### 설정 파일
+`~/.config/whisperflow/config.json`에서 모든 설정을 관리합니다.
+
+**주요 설정 옵션**:
+```json
+{
+  "model_size": "small",        // tiny, base, small, medium, large-v3
+  "language": "ko",             // ko, en, ja, zh, auto
+  "hotkey": "option+control",   // 단축키 조합
+  "output_mode": "type",        // type (자동 입력) / clipboard (클립보드)
+  "sample_rate": 16000          // 오디오 샘플링 레이트
+}
+```
+
+### 모델 선택 가이드
+| 모델 | 정확도 | 속도 | 메모리 | 추천 상황 |
+|------|--------|------|--------|----------|
+| tiny | ⭐⭐ | 매우 빠름 | ~1GB | 빠른 응답 필요 |
+| base | ⭐⭐⭐ | 빠름 | ~1GB | 균형잡힌 선택 |
+| small | ⭐⭐⭐⭐ | 보통 | ~2GB | 정확도 중시 (권장) |
+| medium | ⭐⭐⭐⭐⭐ | 느림 | ~5GB | 복잡한 음성 |
+| large-v3 | ⭐⭐⭐⭐⭐⭐ | 매우 느림 | ~10GB | 최고 정확도 필요 |
+
+### 선택적 통합
+
+**Philips Hue 스마트 조명**:
+```bash
+# ~/.config/whisperflow/hue_config.json
+{
+  "enabled": true,
+  "bridge_ip": "192.168.1.X",
+  "api_key": "your-hue-api-key",
+  "light_id": 26
+}
+```
+[Hue API 문서](https://developers.meethue.com/develop/get-started-3/)
+
+**Obsidian Vault 연동**:
+```bash
+# 환경변수 설정
+export OBSIDIAN_VAULT_PATH="~/path/to/vault"
+export HOME_ADDRESS_FILE="~/path/to/address.md"
+```
+
+## 🔧 기술 스택
+
+| 기능 | 라이브러리 | 설명 |
+|------|----------|------|
+| **STT** | faster-whisper | OpenAI Whisper 기반 (4배 빠름) |
+| **TTS** | Qwen-Audio | 고품질 음성 합성 + 음성 클로닝 |
+| **메뉴바** | rumps | macOS 메뉴바 통합 |
+| **단축키** | pynput | 전역 단축키 감지 |
+| **오디오** | sounddevice | 실시간 오디오 캡처 |
+| **UI** | WebSocket + HTML/Canvas | 실시간 파티클 효과 |
+| **제스처** | MediaPipe | 손 인식 및 제스처 |
+
+## 📁 프로젝트 구조
 
 ```
 whisperflow/
-├── __init__.py          # 패키지 초기화
-├── __main__.py          # 모듈 실행 진입점
-├── app.py               # 메인 메뉴바 앱 (rumps)
-├── audio_recorder.py    # sounddevice 녹음
-├── config.py            # 설정 관리
-├── hotkey_manager.py    # pynput 단축키
-├── text_output.py       # 클립보드/타이핑
-└── transcriber.py       # faster-whisper 변환
+├── app.py                    # 메인 메뉴바 앱
+├── audio_recorder.py         # 오디오 녹음
+├── transcriber.py            # Whisper STT
+├── tts_reader.py             # Qwen TTS
+├── hotkey_manager.py         # 단축키 관리
+├── gesture_control.py        # 제스처 인식 (MediaPipe)
+├── camera_feed.py            # 카메라 피드
+├── ws_server.py              # WebSocket 서버
+├── static/
+│   └── jarvis.html          # JARVIS UI (메인)
+├── models/
+│   └── hand_landmarker.task  # MediaPipe 모델
+└── history_manager.py        # 히스토리 저장
 ```
 
-## 기술 스택
+## 🐛 문제 해결
 
-- **rumps**: macOS 메뉴바 앱 프레임워크
-- **faster-whisper**: Whisper보다 4배 빠른 로컬 STT
-- **sounddevice**: 오디오 녹음
-- **pynput**: 전역 단축키
-- **pyperclip**: 클립보드 관리
+### 단축키 작동 안 함
+```bash
+# 1. 접근성 권한 확인
+시스템 설정 → 개인정보 보호 및 보안 → 접근성 → 터미널 허용
 
-## 로그인 시 자동 실행
+# 2. 단축키 변경 (메뉴에서)
+메뉴바 🎤 → 단축키 설정
+```
 
-이미 설정됨. 확인/변경:
-- 시스템 설정 → 일반 → 로그인 항목 → WhisperFlow.command
+### 녹음 안 됨
+```bash
+# 1. 마이크 권한 확인
+시스템 설정 → 개인정보 보호 및 보안 → 마이크 → 터미널 허용
 
-## 문제 해결
+# 2. 입력 장치 확인
+시스템 환경설정 → 사운드 → 입력 탭
+```
 
-### 단축키가 안 될 때
-1. 접근성 권한 확인
-2. 앱 재시작
-3. 단축키 조합 변경 (메뉴에서)
+### 변환 속도 느림
+- 모델 변경: tiny/base 사용
+- 첫 실행 시: 모델 다운로드 중 (한 번만)
+- CPU 부하: 다른 앱 종료 후 시도
 
-### 녹음이 안 될 때
-1. 마이크 권한 확인
-2. 시스템 환경설정 → 사운드 → 입력 장치 확인
+### AI 음성 응답이 안 나옴
+- Qwen TTS 서버 실행 여부 확인
+- 환경변수 설정: `QWEN_TTS_DIR` 설정
+- 포트 9093 충돌 확인
 
-### 변환이 느릴 때
-1. 모델을 작은 것으로 변경 (tiny, base)
-2. 첫 실행 시 모델 다운로드로 오래 걸림
+---
 
-## 라이선스
+## 🗺️ Roadmap
 
-MIT License
+### ✅ 완료 (v1.0)
+- [x] 로컬 음성인식 (Whisper)
+- [x] AI 음성 응답 (Qwen TTS)
+- [x] 단축키 녹음/재생
+- [x] 히스토리 저장
+- [x] 제스처 컨트롤 (손 인식)
+- [x] 카메라 피드
+- [x] Hue 라이트 연동
+
+### 🔄 진행 중 (v1.1)
+- [ ] JARVIS UI 완성 (파티클 음성 동기화)
+- [ ] 우아한 디자인 시스템
+- [ ] 브라우저 피드 최적화
+
+### ⏳ 예정 (v2.0)
+- [ ] iPad 원격 음성 입력
+- [ ] 더 나은 제스처 컨트롤
+- [ ] Whisper 모델 동적 선택
+- [ ] 모바일 앱 (iOS/Android)
+- [ ] 클라우드 동기화
+
+---
+
+## 📝 라이선스
+
+MIT License — 자유롭게 사용, 수정, 배포 가능
+
+---
+
+## 🤝 기여하기
+
+버그 리포트, 기능 요청, PR 환영합니다!
+
+1. 이슈 생성: [GitHub Issues](https://github.com/yourusername/WhisperFlow/issues)
+2. Fork 후 기능 브랜치 생성: `git checkout -b feature/amazing-feature`
+3. 커밋: `git commit -m 'Add amazing feature'`
+4. Push: `git push origin feature/amazing-feature`
+5. Pull Request 제출
+
+---
+
+## 💬 지원
+
+문제가 발생하면:
+- 📖 [Troubleshooting Guide](#문제-해결)
+- 🐛 [GitHub Issues](https://github.com/yourusername/WhisperFlow/issues)
+- 💌 이메일: support@whisperflow.app
+
+---
+
+**Made with ❤️ by the WhisperFlow Team**
