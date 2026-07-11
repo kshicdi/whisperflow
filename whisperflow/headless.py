@@ -35,6 +35,12 @@ async def _main():
 
     server = WhisperFlowWSServer()
 
+    # Register headless TTS handler (Qwen TTS → WebSocket tts_audio)
+    from whisperflow.headless_tts import HeadlessTTSHandler
+    tts_handler = HeadlessTTSHandler(server)
+    server._on_chat_tts = tts_handler.handle
+    logger.info("HeadlessTTSHandler registered on ws_server._on_chat_tts")
+
     # Register a stop event for clean shutdown
     loop = asyncio.get_running_loop()
     stop = asyncio.Event()
