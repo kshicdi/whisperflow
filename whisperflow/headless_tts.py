@@ -32,6 +32,8 @@ logger = logging.getLogger("whisperflow.headless_tts")
 _QWEN_URL = os.environ.get("QWEN_TTS_URL", "http://localhost:9093")
 _VOICE = os.environ.get("JARVIS_TTS_VOICE", "clone:jarvis")
 _SPEED = float(os.environ.get("JARVIS_TTS_SPEED", "1.4"))
+# 콜드 스타트(모델 로딩) 포함 생성 대기 상한. 60초는 첫 요청에서 초과할 수 있음.
+_TIMEOUT = float(os.environ.get("QWEN_TTS_TIMEOUT", "120"))
 _SEED = 42
 _INSTRUCT = "Calm and warm narration tone, speaking at a steady moderate pace"
 _MAX_TEXT = 500
@@ -136,8 +138,33 @@ def _generate_audio(text: str) -> bytes:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    resp = urllib.request.urlopen(req, timeout=60)
+    resp = urllib.request.urlopen(req, timeout=_TIMEOUT)
     return resp.read()
+
+
+def warmup():
+    """Qwen 서버 모델 프리로드. 헤드리스 서버 기동 시 백그라운드 스레드에서 호출.
+
+    첫 사용자 요청이 모델 로딩(수십 초)을 기다리지 않도록 짧은 문장을 미리 생성한다.
+    Qwen 서버가 아직 안 떠 있을 수 있으므로 헬스체크를 여러 번 재시도한다.
+    """
+    import time
+
+    def _run():
+        for _ in range(12):  # 최대 ~1분 대기
+            if _check_qwen_health():
+                break
+            time.sleep(5)
+        else:
+            logger.info("[headless_tts] warmup: Qwen 서버 미응답 — 프리로드 생략")
+            return
+        try:
+            _generate_audio("안녕하세요")
+            logger.info("[headless_tts] warmup: Qwen 모델 프리로드 완료")
+        except Exception as e:
+            logger.warning("[headless_tts] warmup 실패 (무시): %s", e)
+
+    threading.Thread(target=_run, daemon=True).start()
 
 
 def _speed_up_audio(audio_bytes: bytes, speed: float) -> bytes:
@@ -275,8 +302,21 @@ class HeadlessTTSHandler:
                 try:
                     audio = _generate_audio(chunk)
                 except Exception as e:
-                    logger.warning("[headless_tts] Qwen generate 실패: %s — say 폴백", e)
-                    use_qwen = False
+                    # Qwen 서버가 크래시했으면 launchd(KeepAlive)가 곧 되살림 → 한 번 재시도
+                    logger.warning("[headless_tts] Qwen generate 실패: %s — 5초 후 재시도", e)
+                    import time
+                    time.sleep(5)
+                    if self._is_stale(gen):
+                        return
+                    if _check_qwen_health():
+                        try:
+                            audio = _generate_audio(chunk)
+                        except Exception as e2:
+                            logger.warning("[headless_tts] Qwen 재시도 실패: %s — say 폴백", e2)
+                            use_qwen = False
+                    else:
+                        logger.warning("[headless_tts] Qwen 서버 다운 — say 폴백")
+                        use_qwen = False
 
             if audio is None:
                 # say 폴백: 청크 전체를 한 번에
