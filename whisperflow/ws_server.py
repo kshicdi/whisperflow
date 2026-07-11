@@ -347,11 +347,14 @@ class WhisperFlowWSServer:
             }))
             return
 
-        # 세션이 없으면 자동 생성 (second-brain 기본 경로)
+        # 세션이 없으면 자동 생성 (second-brain 기본 경로, 없는 머신에서는 홈 폴더)
         if session_manager.get_session(tab_id) is None:
+            default_cwd = Path.home() / "Documents/idea/07second-brain"
+            if not default_cwd.is_dir():
+                default_cwd = Path.home()
             session_manager.create_session(
                 tab_id, name=tab_id,
-                cwd=str(Path.home() / "Documents/idea/07second-brain"),
+                cwd=str(default_cwd),
             )
 
         # Save user message to file

@@ -96,6 +96,10 @@ class AssistantSession:
     ):
         self.lock = threading.Lock()
         self.name = name
+        # 저장된 세션의 cwd가 이 머신에 없으면(다른 머신에서 생성 등) 홈으로 대체
+        # — Popen(cwd=없는경로)는 FileNotFoundError를 내며 CLI 미설치로 오인됨
+        if cwd and not Path(cwd).is_dir():
+            cwd = None
         self.cwd = cwd or str(Path.home())
         self.model_alias = model_alias
         self.model = MODEL_ALIASES.get(model_alias, model_alias)
