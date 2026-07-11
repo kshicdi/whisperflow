@@ -25,7 +25,8 @@ from whisperflow.assistant_session import session_manager
 
 logger = logging.getLogger(__name__)
 
-WS_PORT = 8767
+WS_PORT = int(os.environ.get("WS_PORT", 8767))
+WS_HOST = os.environ.get("WS_HOST", "127.0.0.1")
 
 
 class WhisperFlowWSServer:
@@ -511,13 +512,13 @@ class WhisperFlowWSServer:
         try:
             async with websockets.serve(
                 self._handler,
-                "127.0.0.1",
+                WS_HOST,
                 WS_PORT,
                 process_request=self._process_request,
                 max_size=10 * 1024 * 1024,  # 10MB for browser screenshots
             ) as server:
                 self._server = server
-                logger.info("WhisperFlow WS server started on ws://localhost:%d", WS_PORT)
+                logger.info("WhisperFlow WS server started on ws://%s:%d", WS_HOST, WS_PORT)
                 await self._stop_event.wait()
             logger.info("WhisperFlow WS server stopped")
         except OSError as e:

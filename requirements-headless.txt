@@ -1,0 +1,4 @@
+# WhisperFlow headless server — minimum dependencies
+# (GUI/audio packages excluded: rumps, sounddevice, pyaudio, faster-whisper, pynput, pyperclip)
+
+websockets>=13.0
