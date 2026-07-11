@@ -4965,8 +4965,11 @@
     let webSpeechRecognition = null;
     let silenceTimer = null;
     let manualStop = false;         // 사용자가 수동으로 멈춘 건지 구분
-    let accumulatedText = '';       // continuous 모드에서 누적 텍스트
-    const SILENCE_TIMEOUT = 3000;   // 3초 무음 시 자동 종료
+    let accumulatedText = '';       // 현재 인식 세션의 final 텍스트
+    let currentInterim = '';        // 현재 세션의 미확정(interim) 텍스트
+    let speechSessionBase = '';     // iOS 자동 재시작 시 이전 세션들의 텍스트 누적
+    let isAutoRestart = false;      // onstart가 자동 재시작인지 수동 시작인지 구분
+    const SILENCE_TIMEOUT = 5000;   // 5초 무음 시 자동 종료 (3초는 생각하는 사이 끊김)
 
     function clearSilenceTimer() {
       if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
@@ -4978,7 +4981,7 @@
         if (webSpeechActive && webSpeechRecognition) {
           console.log('[WebSpeech] Silence timeout — stopping');
           manualStop = true;
-          webSpeechRecognition.stop();
+          try { webSpeechRecognition.stop(); } catch(e) {}
         }
       }, SILENCE_TIMEOUT);
     }
@@ -5001,11 +5004,22 @@
       recognition.maxAlternatives = 1;
 
       recognition.onstart = () => {
+        if (manualStop) {
+          // 재시작 틈에 사용자가 정지를 눌렀음 — 즉시 종료 (onend 수동 경로로 이어짐)
+          isAutoRestart = false;
+          try { recognition.stop(); } catch(e) {}
+          return;
+        }
         webSpeechActive = true;
-        manualStop = false;
         accumulatedText = '';
+        currentInterim = '';
+        const wasRestart = isAutoRestart;
+        isAutoRestart = false;
+        if (!wasRestart) {
+          speechSessionBase = '';   // 수동 시작일 때만 누적 초기화
+          startSilenceTimer();      // 재시작 시엔 기존 타이머 유지 (리셋하면 무음 종료가 영영 안 됨)
+        }
         setUIState('recording');
-        startSilenceTimer();
       };
 
       recognition.onresult = (event) => {
@@ -5019,8 +5033,9 @@
           }
         }
         accumulatedText = allFinal;
-        // Show combined text in input field
-        chatSlideInput.value = allFinal + (interim ? interim : '');
+        currentInterim = interim;
+        // Show combined text in input field (이전 세션 누적분 + 현재 세션)
+        chatSlideInput.value = speechSessionBase + allFinal + (interim ? interim : '');
         // Scroll down to show latest wrapped line
         chatSlideInput.scrollTop = chatSlideInput.scrollHeight;
         // Reset silence timer on every new result
@@ -5029,13 +5044,21 @@
 
       recognition.onend = () => {
         if (!manualStop && webSpeechActive) {
-          // iOS Safari가 자동으로 끊은 경우 — 재시작
+          // iOS Safari가 자동으로 끊은 경우 — 지금까지의 텍스트(미확정 포함)를 누적하고 재시작.
+          // 세션이 죽으면 interim은 다시 final로 확정될 기회가 없으므로 함께 보존한다.
           console.log('[WebSpeech] Browser stopped — auto-restarting');
+          const done = (speechSessionBase + accumulatedText + currentInterim).trim();
+          speechSessionBase = done ? done + ' ' : '';
+          accumulatedText = '';
+          currentInterim = '';
+          isAutoRestart = true;
           try { recognition.start(); } catch(e) {
             // 재시작 실패 시 종료 처리
+            isAutoRestart = false;
             webSpeechActive = false;
             setUIState('idle');
             const text = chatSlideInput.value.trim();
+            speechSessionBase = '';
             if (text) sendChatMessage();
           }
           return;
@@ -5044,8 +5067,10 @@
         clearSilenceTimer();
         webSpeechActive = false;
         manualStop = false;
+        isAutoRestart = false;
         setUIState('idle');
         const text = chatSlideInput.value.trim();
+        speechSessionBase = '';
         if (text) {
           sendChatMessage();
         } else if (ws && ws.readyState === WebSocket.OPEN) {
@@ -5061,6 +5086,8 @@
         clearSilenceTimer();
         webSpeechActive = false;
         manualStop = false;
+        isAutoRestart = false;
+        speechSessionBase = '';
         setUIState('idle');
       };
 
