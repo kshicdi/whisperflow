@@ -1384,7 +1384,8 @@ class WhisperFlowApp(rumps.App):
                     import urllib.request
                     r = urllib.request.urlopen('http://localhost:9093/health', timeout=2)
                     if r.status == 200:
-                        qwen_hook = os.environ.get('QWEN_TTS_HOOK')
+                        qwen_hook = os.environ.get('QWEN_TTS_HOOK') or str(
+                            Path.home() / ".claude" / "hooks" / "qwen_tts_speak.py")
                         if qwen_hook and os.path.exists(qwen_hook):
                             cmd = ["/usr/bin/python3", qwen_hook]
                             if not config.tts_say_first:
