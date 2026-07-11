@@ -38,8 +38,8 @@
 
 ## 다음 할 것
 - [ ] 모바일 UA → jarvis.html 서빙하도록 변경 검토 (assistant.html의 remote_record 의존 해소)
-- [ ] iPhone 실기기 테스트 (Web Speech API 음성 입력 + TTS 재생)
-- [ ] 첫 요청 TTS 지연(모델 로딩) 개선 — serve.py 기동 시 모델 프리로드 검토
+- [x] iPhone 실기기 테스트 (음성 입력 + Qwen TTS 재생 확인 완료)
+- [x] 첫 요청 TTS 지연 개선 — 헤드리스 기동 시 warmup 프리로드 + 120초 타임아웃 + 1회 재시도 (headless_tts.py)
 
 ## 관련 파일
 - `whisperflow/headless.py` — 헤드리스 진입점
