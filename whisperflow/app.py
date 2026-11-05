@@ -962,8 +962,8 @@ class WhisperFlowApp(rumps.App):
         """실행 중인 TTS 프로세스(afplay, say, qwen_tts_speak)를 즉시 강제 종료"""
         # 플래그 파일 제거
         Path("/tmp/whisperflow-tts-playing").unlink(missing_ok=True)
-        # pkill -9로 즉시 강제 종료
-        for pattern in ["afplay", "qwen_tts_speak"]:
+        # pkill -9로 즉시 강제 종료 (whisperflow만 타겟)
+        for pattern in ["afplay.*static/sounds/", "qwen_tts_speak"]:
             try:
                 subprocess.run(["pkill", "-9", "-f", pattern], capture_output=True, timeout=1)
             except Exception:

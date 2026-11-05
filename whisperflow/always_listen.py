@@ -376,7 +376,7 @@ class AlwaysListen:
     def _kill_tts_processes(self) -> None:
         """TTS 프로세스를 강제 종료 + 인터럽트 응답음 재생."""
         import random
-        for pattern in ["afplay", "qwen_tts_speak"]:
+        for pattern in ["afplay.*static/sounds/", "qwen_tts_speak"]:
             try:
                 subprocess.run(["pkill", "-9", "-f", pattern], capture_output=True, timeout=1)
             except Exception:
